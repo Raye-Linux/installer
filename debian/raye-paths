@@ -25,6 +25,7 @@ calamares-settings-raye  usr/libexec/raye-preflight
 calamares-settings-raye  usr/libexec/raye-disks
 calamares-settings-raye  usr/libexec/raye-install-logs
 calamares-settings-raye  usr/libexec/raye-efi-entry
+calamares-settings-raye  usr/libexec/raye-safe-graphics
 calamares-settings-raye  usr/libexec/fixconkeys-part1
 calamares-settings-raye  usr/libexec/fixconkeys-part2
 calamares-settings-raye  usr/libexec/raye-setup-session

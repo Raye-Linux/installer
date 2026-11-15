@@ -1,0 +1,37 @@
+#!/bin/sh
+# Runs inside the new system, after the boot loader is in place.
+#
+# A person who could only start the install USB with its "Safe graphics"
+# entry (nomodeset) has a graphics card whose driver leaves the screen
+# black. The system we just installed would start without nomodeset, and
+# the screen would stay black after the first restart. Keep it: a drop-in
+# adds nomodeset to the normal boot entry, then update-grub writes the
+# menu again. The drop-in sorts after 50-raye.cfg, which sets the
+# command line; deleting the file (and running update-grub) undoes it.
+#
+# A live session started without nomodeset changes nothing.
+
+set -u
+root=${RAYE_ROOT:-}
+cmdline=${RAYE_CMDLINE:-/proc/cmdline}
+dropin=$root/etc/default/grub.d/90-raye-safe-graphics.cfg
+
+case " $(cat "$cmdline" 2>/dev/null) " in
+    *" nomodeset "*) ;;
+    *) exit 0 ;;
+esac
+
+mkdir -p "${dropin%/*}" || exit 1
+cat > "$dropin" <<'CFG' || exit 1
+# Written by the installer: this computer was installed from the
+# "Safe graphics" entry of the install USB, so it starts with nomodeset
+# too. With a working graphics driver, delete this file and run
+# "sudo update-grub".
+case " $GRUB_CMDLINE_LINUX_DEFAULT " in
+    *" nomodeset "*) ;;
+    *) GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT nomodeset" ;;
+esac
+CFG
+chmod 644 "$dropin"
+
+${RAYE_UPDATE_GRUB:-update-grub}
