@@ -1,3 +1,10 @@
+calamares-settings-raye (0.5.1~beta1) resolute; urgency=medium
+
+  * A system installed from the Safe graphics entry keeps nomodeset on
+    its kernel command line.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Sun, 15 Nov 2026 14:58:53 +0000
+
 calamares-settings-raye (0.5~beta1) resolute; urgency=medium
 
   * The installer says Raye Linux 0.5 Beta Alpenglow.
