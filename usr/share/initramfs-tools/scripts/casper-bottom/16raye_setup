@@ -1,0 +1,22 @@
+#!/bin/sh
+# The USB stick starts Raye Setup and nothing else: 15autologin wrote the
+# live account's autologin with the desktop session, this points it at the
+# setup session instead. Only in the live image's initrd: this file leaves
+# with the installer.
+
+PREREQ="15autologin"
+prereqs() { echo "$PREREQ"; }
+case $1 in
+    prereqs) prereqs; exit 0 ;;
+esac
+
+. /scripts/casper-functions
+
+[ -f /root/usr/share/wayland-sessions/raye-setup.desktop ] || exit 0
+[ -f /root/etc/sddm.conf ] || exit 0
+
+log_begin_msg "Starting Raye Setup"
+if grep -q '^Session=' /root/etc/sddm.conf; then
+    sed -i 's/^Session=.*/Session=raye-setup.desktop/' /root/etc/sddm.conf
+fi
+log_end_msg

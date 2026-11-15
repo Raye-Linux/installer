@@ -1,0 +1,9 @@
+# The stock bootloader module, without its requiredModules: [ "partition" ].
+# It only says that because the partition module used to set firmwareType, and
+# Calamares refuses to start when a module it names is not in the sequence.
+# rayedisk sets firmwareType now.
+---
+type:       "job"
+interface:  "python"
+name:       "bootloader"
+script:     "/usr/lib/x86_64-linux-gnu/calamares/modules/bootloader/main.py"

@@ -1,0 +1,35 @@
+---
+componentName: raye
+welcomeStyleCalamares: false
+welcomeExpandingLogo: true
+windowExpanding: fullscreen
+windowPlacement: center
+# the stages along the top, Back and Next along the bottom, the page in
+# between draws its own card (branding/raye/components/RayeFrame.qml)
+sidebar: qml,top
+navigation: qml,bottom
+
+strings:
+    productName:         Raye Linux
+    shortProductName:    Raye
+    version:             0.5 Beta Alpenglow
+    shortVersion:        0.5 Beta
+    versionedName:       Raye Linux 0.5 Beta Alpenglow
+    shortVersionedName:  Raye 0.5 Beta
+    bootloaderEntryName: Raye Linux
+    productUrl:          https://github.com/Raye-Linux
+    supportUrl:          https://github.com/Raye-Linux/handbook
+
+images:
+    productLogo:         "logo.png"
+    productIcon:         "icon.png"
+    productWelcome:      "welcome.png"
+
+slideshow:               "show.qml"
+slideshowAPI:            2
+
+style:
+   SidebarBackground:        "#0e0a16"
+   SidebarText:              "#f3eaff"
+   SidebarTextCurrent:       "#0e0a16"
+   SidebarBackgroundCurrent: "#b88cff"

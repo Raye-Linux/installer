@@ -1,0 +1,37 @@
+/* Raye Setup. The QML pages draw themselves; this is for what Calamares
+   draws with widgets: the strip around each page, the
+   progress while installing, and message boxes. Colours: Raye Night. */
+
+/* the few pixels Calamares leaves around every page: the same night as
+   the pages' own background, so no frame shows */
+#viewManagerStack {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #0e0a17, stop: 1 #1a1028);
+}
+
+/* while Raye installs: a thin violet bar with its percent, the step in
+   quiet text; the log button goes (the page has "Show details") */
+#exec-progress {
+    min-height: 16px;
+    max-height: 16px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 26);
+    color: #f3eaff;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    margin: 0 48px;
+}
+#exec-progress::chunk {
+    border-radius: 8px;
+    background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0, stop: 0 #7b3cff, stop: 1 #c040ff);
+}
+#exec-message {
+    color: #b9a8d6;
+    margin: 4px 48px 12px 48px;
+}
+#slideshow QToolBar {
+    max-width: 0px;
+    max-height: 0px;
+    border: none;
+}

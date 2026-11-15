@@ -1,0 +1,34 @@
+#!/bin/sh
+# The only session of the Raye USB stick: KWin, and Raye Setup full screen
+# in it. No desktop, no taskbar, nothing else to start. SDDM's autologin
+# starts it (casper-bottom/16raye_setup points the live account at it).
+#
+# If Setup cannot start at all (raye-setup-run gives up and leaves
+# /run/raye-setup/rescue), the desktop comes up instead: a person never
+# ends on a black screen.
+
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=KDE
+export XDG_SESSION_DESKTOP=raye-setup
+export KDE_SESSION_VERSION=6
+export KDE_FULL_SESSION=true
+export QT_QPA_PLATFORM=wayland
+
+# KWin reads its config from the live account's own folder, which is new
+# on every start of the stick
+mkdir -p "$HOME/.config"
+cp /usr/share/raye/setup/kwinrc "$HOME/.config/kwinrc"
+
+grep -qw nomodeset /proc/cmdline && export QT_QUICK_BACKEND=software KWIN_COMPOSE=Q
+
+# no locking, no sleep, no dimming while someone installs
+systemd-inhibit --what=idle:sleep:handle-lid-switch --who="Raye Setup" \
+    --why="Installing Raye Linux" --mode=block \
+    kwin_wayland --xwayland --no-lockscreen --no-global-shortcuts --no-kactivities \
+        --exit-with-session /usr/libexec/raye-setup-run
+
+if [ -e /run/raye-setup/rescue ]; then
+    rm -f "$HOME/.config/kwinrc"
+    unset KWIN_COMPOSE
+    exec /usr/lib/x86_64-linux-gnu/libexec/plasma-dbus-run-session-if-needed /usr/bin/startplasma-wayland
+fi

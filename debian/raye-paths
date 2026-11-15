@@ -1,0 +1,59 @@
+# Which binary package ships each file of the installer.
+#
+#   package   source   [destination]
+#
+# The source is a file or a folder, relative to the top of the repo, or
+# under debian/tmp for what the CMake build installs. The destination is
+# the source path (without debian/tmp/) unless given. "?" in front of the
+# source: the part that brings it is not written yet, so the build skips
+# it while it is missing (RAYE_PATHS_STRICT=1 makes that an error). The
+# day the part lands, the "?" goes: on a path that is there it does
+# nothing but hide its disappearance later.
+#
+# Every file under etc/, usr/, qml/, assets/illustrations/ and data/, and
+# everything the CMake build installs, must be listed here, or the build
+# stops. debian/raye_paths.py reads this file.
+
+# Live image only. The installer removes this package from the new system.
+calamares-settings-raye  etc/calamares
+calamares-settings-raye  etc/xdg/plasma-nm
+calamares-settings-raye  ?etc/xdg/kscreenlockerrc
+calamares-settings-raye  ?etc/xdg/powerdevilrc
+calamares-settings-raye  usr/bin/raye-install
+calamares-settings-raye  ?debian/tmp/usr/bin/raye-setup
+calamares-settings-raye  usr/libexec/raye-preflight
+calamares-settings-raye  usr/libexec/raye-disks
+calamares-settings-raye  usr/libexec/raye-install-logs
+calamares-settings-raye  usr/libexec/raye-efi-entry
+calamares-settings-raye  usr/libexec/fixconkeys-part1
+calamares-settings-raye  usr/libexec/fixconkeys-part2
+calamares-settings-raye  usr/libexec/raye-setup-session
+calamares-settings-raye  usr/libexec/raye-setup-run
+calamares-settings-raye  usr/libexec/raye-setup-private
+calamares-settings-raye  ?usr/libexec/raye-calamares
+calamares-settings-raye  ?usr/libexec/raye-restart
+calamares-settings-raye  usr/lib/calamares/modules/rayeencryption
+calamares-settings-raye  usr/lib/calamares/modules/rayedisk
+calamares-settings-raye  usr/lib/calamares/modules/bootloader
+calamares-settings-raye  usr/lib/calamares/modules/rayesetupchoices
+calamares-settings-raye  ?usr/lib/calamares/modules/rayelanguage
+calamares-settings-raye  ?usr/lib/systemd/system/raye-live-remove-usb.service
+calamares-settings-raye  ?usr/lib/tmpfiles.d/raye-setup.conf
+calamares-settings-raye  usr/share/applications/raye-install.desktop
+# Replaces the one from calamares-data (diverted in preinst).
+calamares-settings-raye  ?usr/share/applications/calamares.desktop
+calamares-settings-raye  usr/share/wayland-sessions/raye-setup.desktop
+calamares-settings-raye  usr/share/initramfs-tools/scripts/casper-bottom/16raye_setup
+calamares-settings-raye  usr/share/raye/setup
+
+# Shared look of the setup and first-run apps, pure QML.
+qml6-module-org-raye-setup  qml/org/raye/setup  usr/lib/${DEB_HOST_MULTIARCH}/qt6/qml/org/raye/setup
+# Inside the module folder, so the QML reaches them with a relative URL
+# and the package stays the same on every architecture.
+qml6-module-org-raye-setup  assets/illustrations  usr/lib/${DEB_HOST_MULTIARCH}/qt6/qml/org/raye/setup/illustrations
+
+# Installed system: welcome after the first sign-in, "What's new" after
+# an upgrade.
+raye-first-run  debian/tmp/usr/bin/raye-first-run
+raye-first-run  etc/xdg/autostart/raye-first-run.desktop
+raye-first-run  ?data/whatsnew  usr/share/raye/first-run/whatsnew

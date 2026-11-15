@@ -1,0 +1,146 @@
+calamares-settings-raye (0.5~beta1) resolute; urgency=medium
+
+  * The installer says Raye Linux 0.5 Beta Alpenglow.
+  * Unencrypted installs get a separate ext4 /boot too, so the boot menu
+    stays hidden at start (Esc or Shift still opens it).
+  * Setup speaks of root, not administrator, except in the chkdsk
+    advice.
+  * Setup looks calmer: flat pictures on a plain grey background, violet
+    only on what you pick, named password boxes, a way to show the disk
+    password, and simpler wording in English and French.
+  * The restart after setup no longer flashes "The system will reboot
+    now!" on the screen.
+  * Going back to another language in Setup now changes the clock and date
+    formats too, unless you set them yourself.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Thu, 12 Nov 2026 20:42:05 +0000
+
+calamares-settings-raye (0.3~beta1) resolute; urgency=medium
+
+  * The installer says Raye Linux 0.3 Beta.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Wed, 11 Nov 2026 13:00:19 +0000
+
+calamares-settings-raye (0.2~beta1) resolute; urgency=medium
+
+  * The installer says Raye Linux 0.2 Beta.
+  * Raye draws the disk page and writes the disk itself, and never erases a
+    disk it could not read.
+  * The disk page stops waiting when the scan never answers, and the disk
+    password line says nothing wrong before anything is typed.
+  * The network page draws a cable for a cable, and is no longer blank on a
+    wired connection.
+  * The user page keeps every field in place while you type.
+  * The slideshow shows French screens during a French install, taken again
+    on a clean desktop.
+  * Ready to install speaks in plain words, not in jobs.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Sun, 08 Nov 2026 11:07:43 +0000
+
+calamares-settings-raye (0.1~dev7) resolute; urgency=medium
+
+  * The first window after an encrypted install is a Raye window again.
+    It was a kdialog --msgbox left in ~/.config/autostart by the
+    encryption job, carrying the 48 digits that open the disk in plain
+    text, with one OK button: nothing to copy them with, nothing to keep
+    them in, and none of the Raye look, since kdialog is a QtWidgets
+    program and the Raye look is the QML module org.raye.setup. The job
+    only ever showed that box because /usr/bin/raye-first-run was not
+    there; it is now, so the branch turns itself off.
+  * raye-first-run ships its first page: the recovery key in groups of
+    six on the night background, Copy, "Save a copy...", a sentence
+    saying what the key is for, and a Done that waits until the person
+    says the key is written down. Esc leaves it for the next sign-in.
+  * The recovery key notice no longer deletes itself when the box it
+    tried to open never ran. kdialog is on its way out of the image, and
+    the notice removed its own files whatever kdialog's exit status was,
+    so the day kdialog goes the one message about the key would have
+    vanished without a word.
+  * OWED in debian/test_raye_paths.py goes from 12 to 11:
+    etc/xdg/autostart/raye-first-run.desktop is no longer owed.
+  * OWED goes from 11 to 10, and the ratchet now measures something it
+    could not measure before. debian/raye-paths carried a "?" on
+    debian/tmp/usr/bin/raye-first-run while app/firstrun was written and
+    installed exactly that binary; the marker was stale, and the test
+    could not have noticed, because it asked whether a BUILD OUTPUT
+    exists and a build output never exists outside a package build. Both
+    debian/tmp entries were therefore owed forever, whatever anybody
+    wrote. raye_paths.producing_part() now answers for them -- which part
+    of RAYE_PARTS installs the file, read from CMakeLists.txt and not
+    copied -- so the day app/setup lands the figure comes down by itself.
+  * raye-paths stops reporting a build output it cannot see as a missing
+    part. Under RAYE_PATHS_STRICT=1 outside a package build it said
+    "debian/tmp/usr/bin/raye-first-run: missing" about a file whose part
+    was written: an error about its own working conditions, read as an
+    answer about the tree. Such an entry is now reported under its own
+    word, NOT JUDGED HERE, on stderr and with the count -- not folded in
+    with the notes, where a gate comes to look green over something it
+    never looked at. And a build output that really has no part now says
+    so: "no part of RAYE_PARTS installs it".
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Thu, 06 Nov 2026 12:00:00 +0000
+
+calamares-settings-raye (0.1~dev6) resolute; urgency=medium
+
+  * Installing next to Windows is no longer refused. The disk page would
+    not go on when the EFI partition already on the disk was smaller
+    than it asked for, and it asked for 300 MiB: Windows makes its own
+    at 100 MB, which is 95 MiB. The message spoke of MiB and said
+    nothing about why, so there was no way out of it.
+  * The disk is btrfs and nothing else. Three of the four ways in took
+    their filesystem from the settings; the fourth, manual
+    partitioning, lists every filesystem whose tools are installed and
+    has no setting to narrow that list. It is off, and what it was there
+    for is covered: free space next to the systems already installed, or
+    a partition of one's own, both on btrfs.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Wed, 04 Nov 2026 12:27:31 +0000
+
+calamares-settings-raye (0.1~dev5) resolute; urgency=medium
+
+  * TPM unlock works on chips with only the SHA-256 bank, which is most
+    of them.
+  * Wi-Fi page and side bar in the Raye night colours.
+  * About shows Raye first; the installer's licence sits behind a link.
+  * No automatic login when the TPM opens the disk: a stolen laptop
+    would otherwise start on its owner's desktop.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Thu, 29 Oct 2026 00:16:00 -0400
+
+calamares-settings-raye (0.1~dev4) resolute; urgency=medium
+
+  * Wi-Fi is now a page of the installer, right after the language and
+    the keyboard. Once online, the time zone is set from the location;
+    offline, it is picked from two lists.
+  * Wi-Fi networks joined during setup are kept in the new system.
+  * Encrypted installs get a recovery key, shown at first login and never
+    sent anywhere, and unlock through the TPM when the computer has one,
+    bound to Secure Boot only so updates do not trigger the recovery
+    prompt. Without the TPM the boot asks for the password.
+  * Before starting, the disks are checked for BitLocker, a hibernated
+    Windows and another system sharing EFI/ubuntu, with what to do.
+  * The graphics driver is installed during setup when online.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Wed, 28 Oct 2026 20:44:29 -0400
+
+calamares-settings-raye (0.1~dev3) resolute; urgency=medium
+
+  * After the install, the computer starts the new system next, even
+    with the USB stick still in (BootNext), and Raye is first in the
+    boot order. Old Raye boot entries are cleaned up.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Wed, 28 Oct 2026 18:34:58 -0400
+
+calamares-settings-raye (0.1~dev2) resolute; urgency=medium
+
+  * Depend on rsync, the installer needs it to copy the system.
+  * Dark background for the whole slideshow.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Wed, 28 Oct 2026 16:51:19 -0400
+
+calamares-settings-raye (0.1~dev1) resolute; urgency=medium
+
+  * First Raye installer: language, keyboard, time zone from the network,
+    one-click whole-disk install on btrfs, user account.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Wed, 28 Oct 2026 14:10:00 -0400

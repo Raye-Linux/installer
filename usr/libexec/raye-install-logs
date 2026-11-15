@@ -1,0 +1,16 @@
+#!/bin/sh
+# Keeps the installer's own log in the new system, for when something
+# went wrong and someone asks "what did the installer say?".
+set -u
+root=$1
+dir=$root/var/log/installer
+mkdir -p "$dir"
+for f in /root/.cache/calamares/session.log /home/*/.cache/calamares/session.log; do
+    [ -f "$f" ] && cp "$f" "$dir/session.log"
+done
+cp /var/log/casper.log "$dir/casper.log" 2>/dev/null
+cp /cdrom/.disk/info "$dir/media-info" 2>/dev/null
+# the old partition table, kept by the rayedisk job in root's own folder
+cp /run/raye-setup-root/disk-before-* "$dir/" 2>/dev/null
+chmod 600 "$dir"/* 2>/dev/null
+exit 0

@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+
+# Move the calamares.desktop of calamares-data out of the way. Until Raye
+# ships its own (the eye, hidden from the menu), the diversion alone is
+# what keeps the stock entry out of the menu of the live image.
+divert() {
+    if [ -n "${DPKG_ROOT:-}" ]; then
+        set -- --root="$DPKG_ROOT" "$@"
+    fi
+    dpkg-divert "$@"
+}
+
+if [ "$1" = install ] || [ "$1" = upgrade ]; then
+    divert --package calamares-settings-raye --add --rename \
+        --divert /usr/share/applications/calamares.desktop.calamares-data \
+        /usr/share/applications/calamares.desktop
+fi
+
+#DEBHELPER#

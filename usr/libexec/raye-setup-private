@@ -1,0 +1,42 @@
+#!/bin/sh
+# The folder only root can enter, for what Setup must not leave where the
+# live account could read or swap it: the disk password the disk page hands
+# to the rayedisk job, and the copy of the old partition table.
+#
+#   raye-setup-private prepare [folder]   before Setup starts, every time
+#   raye-setup-private clear [folder]     whenever Setup ends, however
+#
+# /run/raye-setup belongs to the live account, and Calamares writes there as
+# root: a name opened in it can be a link to any file root can write, and
+# what lands in it is readable by everyone. Here the folder is 0700 and the
+# password file is made 0600 before Calamares runs, empty: the page's PUT
+# truncates a file that is there and keeps its mode (measured 2026-11-07 with
+# qml6: a file the PUT has to create comes out 0644).
+set -eu
+[ "$(id -u)" = 0 ] || { echo "raye-setup-private: run as root" >&2; exit 1; }
+
+what=${1:-}
+dir=${2:-/run/raye-setup-root}
+secret=$dir/answer-disk-passphrase
+
+case $what in
+    prepare)
+        # never through a link, never into something that isn't a folder
+        if [ -L "$dir" ] || { [ -e "$dir" ] && [ ! -d "$dir" ]; }; then
+            rm -f -- "$dir"
+        fi
+        mkdir -p -m 0700 -- "$dir"
+        chown 0:0 -- "$dir"
+        chmod 0700 -- "$dir"
+        # nothing of an earlier run counts
+        rm -f -- "$secret" "$dir/answer-disk"
+        ( umask 077 && : > "$secret" )
+        ;;
+    clear)
+        rm -f -- "$secret"
+        ;;
+    *)
+        echo "usage: raye-setup-private prepare|clear [folder]" >&2
+        exit 2
+        ;;
+esac

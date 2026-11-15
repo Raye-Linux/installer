@@ -1,0 +1,6 @@
+# Live session only (this file leaves with the installer): the installer
+# runs as root, which has no secret agent, so Wi-Fi connections made from
+# it are created as system connections. They are copied into the new
+# system so it is online at first boot.
+[General]
+SystemConnectionsByDefault=true

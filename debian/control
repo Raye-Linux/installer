@@ -1,0 +1,69 @@
+Source: calamares-settings-raye
+Section: admin
+Priority: optional
+Maintainer: techoraye <190692880+techoraye@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13),
+               cmake,
+               python3:any,
+               qt6-base-dev,
+               qt6-declarative-dev,
+               qt6-declarative-dev-tools,
+               libkf6solid-dev,
+               python3-pytest <!nocheck>,
+               fdisk <!nocheck>,
+               ntfs-3g <!nocheck>
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/Raye-Linux/installer.git
+
+Package: calamares-settings-raye
+Architecture: any
+# The setup app takes over every dialog box, and then kdialog goes. It
+# stays only while raye-install and raye-live-welcome still call it: the
+# test in debian/test_raye_paths.py fails the day the last caller goes and
+# this line is still here. raye-theme stands in for raye-style until the
+# theme ships it.
+Depends: calamares (>= 3.3.14), qml6-module-org-raye-setup (= ${binary:Version}),
+         raye-style | raye-theme, qml6-module-qtquick, qml6-module-qtquick-shapes,
+         qml6-module-qtquick-effects, kwin-wayland, systemd, kdialog,
+         plasma-workspace, plasma-nm, network-manager, plasma-keyboard, orca, x11-xserver-utils, efibootmgr, squashfs-tools,
+         cryptsetup, keyutils, btrfs-progs, rsync, sudo, ntfs-3g,
+         fdisk, dosfstools, e2fsprogs, os-prober,
+         ${shlibs:Depends}, ${misc:Depends}
+Description: Raye Linux installer
+ The setup that starts from the Raye Linux USB stick, one question per
+ page: language, country or region, keyboard, network, disk, device name,
+ account, privacy, then the install itself, in the Raye look. Also the
+ session that boots straight into setup with no desktop behind it, and the
+ small scripts the installer runs.
+ .
+ Live image only: the installer removes it from the new system.
+
+Package: qml6-module-org-raye-setup
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: raye-style | raye-theme, qml6-module-qtquick, qml6-module-qtquick-controls,
+         qml6-module-qtquick-layouts, qml6-module-qtquick-shapes,
+         qml6-module-qtquick-effects, ${misc:Depends}
+Description: Raye Linux setup look (QML module)
+ Buttons, fields, choice cards, progress ring and the illustrations
+ shared by the Raye installer and the welcome shown after the first
+ sign-in.
+
+Package: raye-first-run
+Architecture: any
+# The QML modules the app imports are listed one by one: its window is
+# built into the binary, so a missing one shows up only as an app that
+# starts and exits at the first sign-in of a new machine.
+# debian/test_raye_paths.py reads app/firstrun/qml and fails when an
+# import has no package here. qrencode and accountsservice belong to the
+# pages still to come (the key's QR code, the account picture).
+Depends: qml6-module-org-raye-setup (= ${binary:Version}),
+         qml6-module-qtquick, qml6-module-qtquick-window, qml6-module-qtquick-dialogs,
+         qrencode, accountsservice,
+         ${shlibs:Depends}, ${misc:Depends}
+Description: Raye Linux welcome after the first sign-in
+ Shown once per person after the first sign-in: save the disk recovery
+ key, privacy choices, dark or light look and the account picture. After
+ an upgrade to a new Raye version it shows what is new.

@@ -1,0 +1,2 @@
+module io.calamares.ui
+singleton Branding 1.0 Branding.qml

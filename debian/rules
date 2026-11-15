@@ -1,0 +1,39 @@
+#!/usr/bin/make -f
+# The setup and first-run apps build with CMake. Every file then goes to
+# its binary package through debian/raye-paths (see debian/raye_paths.py).
+
+include /usr/share/dpkg/architecture.mk
+export DEB_HOST_MULTIARCH
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+# Tests import the job modules: keep bytecode out of the shipped folders.
+export PYTHONDONTWRITEBYTECODE = 1
+# ctest prints "No tests were found!!!" and exits 0. A package whose
+# tests stop being registered -- a renamed tests/ folder, a find_package
+# that quietly goes missing, BUILD_TESTING flipped -- then BUILDS GREEN
+# with nothing run, and the only trace is one line in an 8 MB log.
+# Measured in the resolute chroot: bare ctest on an empty tree exits 0,
+# with this set it exits 8. iso/tools/tests/test_ctest_no_tests_guard.py
+# fails if any debian/rules that runs dh_auto_test loses this line.
+export CTEST_NO_TESTS_ACTION = error
+# a test that would skip for a missing tool fails instead: the build has them
+export RAYE_TESTS_STRICT = 1
+
+%:
+	dh $@ --buildsystem=cmake
+
+override_dh_auto_configure:
+	dh_auto_configure -- \
+		-DBUILD_TESTING=$(if $(filter nocheck,$(DEB_BUILD_OPTIONS)),OFF,ON)
+
+override_dh_install:
+	python3 debian/raye_paths.py install
+
+# raye_paths.py copies out of debian/tmp itself, so dh_missing never sees
+# those files marked as used and would stop the build on every one of them.
+# The list already fails on anything under debian/tmp it does not cover.
+override_dh_missing:
+
+# The remove-USB unit runs when the live system shuts down: enable it, never
+# start it on install.
+override_dh_installsystemd:
+	dh_installsystemd --no-start

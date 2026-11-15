@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Raye Setup
+Name[fr]=Installation de Raye
+Comment=Install Raye Linux on this PC
+Comment[fr]=Installer Raye Linux sur ce PC
+Exec=/usr/libexec/raye-setup-session
+DesktopNames=KDE

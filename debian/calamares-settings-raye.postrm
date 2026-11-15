@@ -1,0 +1,38 @@
+#!/bin/sh
+set -e
+
+#DEBHELPER#
+
+divert() {
+    if [ -n "${DPKG_ROOT:-}" ]; then
+        set -- --root="$DPKG_ROOT" "$@"
+    fi
+    dpkg-divert "$@"
+}
+
+undivert() {
+    divert --package calamares-settings-raye --remove --rename \
+        --divert /usr/share/applications/calamares.desktop.calamares-data \
+        /usr/share/applications/calamares.desktop
+}
+
+case "$1" in
+    remove|abort-install)
+        # dpkg takes our own calamares.desktop away before it runs this, but
+        # an aborted install can leave it behind, and then the stock file has
+        # nowhere to come back to. Only our copy can be at that path here.
+        rm -f "${DPKG_ROOT}/usr/share/applications/calamares.desktop"
+        undivert
+        ;;
+    disappear)
+        # The path now belongs to the package that took our files over:
+        # drop the diversion, leave the file alone.
+        undivert
+        ;;
+    abort-upgrade)
+        # the old version had no diversion
+        if dpkg --compare-versions "$2" lt "0.1~dev6"; then
+            undivert
+        fi
+        ;;
+esac

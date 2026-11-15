@@ -1,0 +1,49 @@
+#!/bin/sh
+# Runs inside the new system right after grub-install.
+#
+# grub-install names the firmware entry after its folder ("ubuntu").
+# Give it the Raye name instead, make it the one the computer starts
+# next, and put a copy of the boot chain in the fallback path so machines
+# that forget their boot entries still start.
+
+set -u
+[ -d /sys/firmware/efi ] || exit 0
+esp=/boot/efi
+src=$esp/EFI/ubuntu
+[ -f "$src/shimx64.efi" ] || exit 0
+
+disk=$(findmnt -no SOURCE "$esp")
+part=$(lsblk -no PARTN "$disk")
+parent=/dev/$(lsblk -no PKNAME "$disk")
+
+tab=$(printf '\t')
+entries() {
+    # number of every entry whose label is exactly $1 (efibootmgr puts a
+    # tab between the label and the device path)
+    efibootmgr | sed -n "s/^Boot\([0-9A-F]\{4\}\)\*\{0,1\} $1$tab.*/\1/p"
+}
+
+# drop the entry grub-install made ("ubuntu", or "Raye" before GRUB used
+# the full name), and any Raye entry left by an earlier
+# install, then add ours
+for n in $(entries ubuntu) $(entries Raye) $(entries "Raye Linux"); do
+    efibootmgr -q -b "$n" -B
+done
+efibootmgr -q -c -d "$parent" -p "$part" -L "Raye Linux" \
+    -l '\EFI\ubuntu\shimx64.efi'
+new=$(entries "Raye Linux" | head -n 1)
+
+if [ -n "$new" ]; then
+    # Raye first in the boot order, and BootNext so the very next start
+    # goes to the new system even if the USB stick is still in and the
+    # firmware is set to prefer it
+    rest=$(efibootmgr | sed -n 's/^BootOrder: //p' | tr ',' '\n' | grep -vx "$new" | paste -sd, -)
+    efibootmgr -q -o "$new${rest:+,$rest}"
+    efibootmgr -q -n "$new"
+fi
+
+mkdir -p "$esp/EFI/BOOT"
+cp "$src/shimx64.efi" "$esp/EFI/BOOT/BOOTX64.EFI"
+cp "$src/grubx64.efi" "$esp/EFI/BOOT/grubx64.efi"
+[ -f "$src/mmx64.efi" ] && cp "$src/mmx64.efi" "$esp/EFI/BOOT/mmx64.efi"
+exit 0

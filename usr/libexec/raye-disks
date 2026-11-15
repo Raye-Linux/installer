@@ -1,0 +1,18 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Tells the disk page of Raye Setup what is on the disks and what it may
+# offer for each, as JSON on stdout. Read only: partitions are looked at,
+# never written, and what other systems are on them is left to os-prober.
+import json
+import pathlib
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent
+                       / "lib/calamares/modules/rayedisk"))
+
+from rayedisk_core import report  # noqa: E402
+from rayedisk_probe import read_machine  # noqa: E402
+
+firmware, disks = read_machine()
+print(json.dumps(report(firmware, disks), ensure_ascii=False))

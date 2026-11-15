@@ -1,0 +1,80 @@
+#!/bin/sh
+# Looks at the disks before the installer starts and prints one line per
+# thing that could go wrong when installing next to another system:
+#
+#   bitlocker <device>     a BitLocker volume, it cannot be resized
+#   hibernated <device>    Windows is hibernated or uses Fast Startup
+#   ntfs-dirty <device>    Windows was not shut down cleanly
+#   ntfs-check <device>    the volume is inconsistent and wants chkdsk
+#   ntfs-busy <device>     something else holds it, or it is a FakeRAID set
+#   ntfs-unknown <device>  we did not understand this volume
+#   shared-efi <device>    another system of the same family owns EFI/ubuntu
+#
+# Read only: nothing is written, the ESPs are mounted read-only.
+#
+# Why every one of those NTFS lines, and not just the hibernated one.
+# Installing next to Windows means shrinking its volume, and the shrink is
+# ntfsresize. ntfsresize refuses four different states, and the messages
+# are in the binary (measured 2026-11-06, ntfs-3g 1:2022.10.3-5+deb13u3):
+#
+#   "The NTFS partition is hibernated. Windows must be resumed and turned off"
+#   "The NTFS journal file is unclean. Please shutdown Windows properly"
+#   "Volume is scheduled for check. Run chkdsk /f and please try again"
+#   "NTFS is inconsistent. Run chkdsk /f on Windows then reboot it TWICE!"
+#
+# rayedisk runs ntfsresize itself, without --force, so a volume in one of those
+# states is stopped before anything is written; this is what lets the page say
+# why, and take the choice away, before the person ever gets there.
+#
+# The answer is never -f. It is to say so here, before the choice is made,
+# and to say what to do in Windows. A state this script cannot name becomes
+# ntfs-unknown rather than silence: a volume nobody understood is exactly
+# the one not to shrink.
+#
+# The exit codes are ntfs-3g.probe's own, from its manual page:
+#   0 mountable   11 syntax   12 not NTFS   13 inconsistent/FakeRAID
+#   14 hibernated 15 unclean  16 in use     17 FakeRAID
+#   18 unknown    19 privilege 20 memory    21 FUSE
+# 127 is the shell's: ntfs-3g.probe is not installed, so nothing was read.
+
+set -u
+[ "$(id -u)" = 0 ] || { echo "raye-preflight: run as root" >&2; exit 1; }
+
+# The finding for one ntfs-3g.probe exit code, "" when the volume is fine.
+ntfs_finding() {
+    case "$1" in
+        0)      echo "" ;;
+        13|17)  echo "ntfs-check" ;;
+        14)     echo "hibernated" ;;
+        15)     echo "ntfs-dirty" ;;
+        16)     echo "ntfs-busy" ;;
+        *)      echo "ntfs-unknown" ;;
+    esac
+}
+
+lsblk -rnpo PATH,FSTYPE,PARTTYPE | while read -r dev fstype parttype; do
+    case "$fstype" in
+        BitLocker)
+            echo "bitlocker $dev"
+            ;;
+        ntfs)
+            # read-write: that is the question, since installing next to
+            # Windows has to shrink the volume
+            ntfs-3g.probe --readwrite "$dev" >/dev/null 2>&1
+            finding=$(ntfs_finding "$?")
+            [ -n "$finding" ] && echo "$finding $dev"
+            ;;
+        vfat)
+            # EFI system partition
+            if [ "$parttype" = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" ]; then
+                mnt=$(mktemp -d /run/raye-esp.XXXXXX)
+                if mount -o ro "$dev" "$mnt" 2>/dev/null; then
+                    [ -f "$mnt/EFI/ubuntu/grub.cfg" ] && echo "shared-efi $dev"
+                    umount "$mnt"
+                fi
+                rmdir "$mnt"
+            fi
+            ;;
+    esac
+done
+exit 0

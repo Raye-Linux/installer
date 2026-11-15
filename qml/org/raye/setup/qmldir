@@ -1,0 +1,19 @@
+module org.raye.setup
+singleton Theme 1.0 Theme.qml
+SetupBackground 1.0 SetupBackground.qml
+SetupFrame 1.0 SetupFrame.qml
+PageEnter 1.0 PageEnter.qml
+Illustration 1.0 Illustration.qml
+PrimaryButton 1.0 PrimaryButton.qml
+SubtleButton 1.0 SubtleButton.qml
+LinkButton 1.0 LinkButton.qml
+TextField 1.0 TextField.qml
+PasswordField 1.0 PasswordField.qml
+FieldLabel 1.0 FieldLabel.qml
+CheckBox 1.0 CheckBox.qml
+ChoiceCard 1.0 ChoiceCard.qml
+ListRow 1.0 ListRow.qml
+ProgressRing 1.0 ProgressRing.qml
+StepDots 1.0 StepDots.qml
+internal ButtonBase ButtonBase.qml
+internal RevealEye RevealEye.qml

@@ -1,0 +1,169 @@
+#!/bin/bash
+# Runs inside the setup session's KWin, as the live account: Raye Setup
+# (Calamares, as root) and the few things Setup asks this session to do.
+#
+# Calamares cannot reach this session's D-Bus, so its pages write one line
+# per request into /run/raye-setup/requests (a FIFO) and this script does
+# it:
+#
+#   keyboard <layouts> <variants>   comma lists as in kxkbrc: us,ca  ,fr
+#   osk on|off                      the on-screen keyboard
+#   reader                          screen reader on or off
+#   power restart|poweroff          from the "Quit Setup?" box
+#   disks                           read the disks again for the disk page
+#
+# It also leaves for the pages, before Calamares starts:
+#   /run/raye-setup/flags       key=value: osk, account_preview, account_server
+#   /run/raye-setup/preflight   what raye-preflight found on the disks
+#   /run/raye-setup/disks.json  what the disk page may offer (raye-disks)
+
+set -u
+
+dir=/run/raye-setup
+requests=$dir/requests
+
+sudo -n install -d -o "$(id -u)" -g "$(id -g)" -m 0755 "$dir"
+rm -f "$requests" "$dir/rescue"
+mkfifo -m 0600 "$requests"
+
+flag_on() {
+    # RAYE_ACCOUNT_PREVIEW=1, raye.account_preview on the kernel line, or
+    # the file Settings uses: the account pages are only a preview so far
+    [ "${RAYE_ACCOUNT_PREVIEW:-}" = 1 ] || [ -e /etc/raye/account-preview ] ||
+        grep -qw 'raye.account_preview=1' /proc/cmdline
+}
+
+account_server() {
+    local server=${RAYE_ACCOUNT_SERVER:-}
+    [ -z "$server" ] && [ -r /etc/raye/account.conf ] &&
+        server=$(sed -n 's/^server=//p' /etc/raye/account.conf | head -1)
+    [ -z "$server" ] && server=$(tr ' ' '\n' </proc/cmdline | sed -n 's/^raye.account_server=//p' | head -1)
+    # plain http only to this machine, like the account service itself
+    case $server in
+        https://*|http://127.0.0.1[:/]*|http://127.0.0.1) printf '%s' "$server" ;;
+    esac
+}
+
+# The on-screen keyboard is whatever KWin can START, and KWin reads one
+# thing: [Wayland] InputMethod of kwinrc, as the path of a .desktop file,
+# whose Exec it runs (kwin 6.3.6, main_wayland.cpp:174-176 -> KDesktopFile
+# -> readEntry("Exec")). A missing desktop file leaves that command empty
+# and nothing ever starts. So the flag asks about THAT file, read out of
+# the kwinrc this session installs rather than named a second time here:
+# the old test was `-x /usr/bin/plasma-keyboard`, a path KWin never looks
+# at, and the two could disagree -- which shows up as a button in the
+# accessibility menu that does nothing at all.
+osk_desktop() {
+    sed -n 's/^InputMethod\[\$e\]=//p' "$HOME/.config/kwinrc" | head -1
+}
+
+osk_available() {
+    local file
+    file=$(osk_desktop)
+    [ -n "$file" ] && [ -r "$file" ] &&
+        [ -n "$(sed -n 's/^Exec=//p' "$file" | head -1)" ]
+}
+
+{
+    echo "osk=$(osk_available && echo 1 || echo 0)"
+    if flag_on && [ -n "$(account_server)" ]; then
+        echo "account_preview=1"
+        echo "account_server=$(account_server)"
+    else
+        echo "account_preview=0"
+    fi
+} > "$dir/flags"
+
+sudo -n /usr/libexec/raye-preflight > "$dir/preflight" 2>/dev/null
+
+# In the background: os-prober takes its time on a disk with several systems,
+# and the page says it is still looking.
+read_disks() {
+    sudo -n /usr/libexec/raye-disks > "$dir/disks.tmp" 2>/dev/null &&
+        mv -f "$dir/disks.tmp" "$dir/disks.json"
+}
+read_disks &
+
+keyboard() {
+    local layouts=$1 variants=${2:-}
+    [[ $layouts =~ ^[A-Za-z0-9_,-]{1,200}$ ]] || return
+    [[ -z $variants || $variants =~ ^[A-Za-z0-9_,-]{0,200}$ ]] || return
+    kwriteconfig6 --file kxkbrc --group Layout --key Use true
+    kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "$layouts"
+    kwriteconfig6 --file kxkbrc --group Layout --key VariantList "$variants" --notify
+}
+
+osk() {
+    local on=false
+    [ "$1" = on ] && on=true
+    busctl --user set-property org.kde.KWin /VirtualKeyboard org.kde.kwin.VirtualKeyboard enabled b "$on"
+    busctl --user set-property org.kde.KWin /VirtualKeyboard org.kde.kwin.VirtualKeyboard active b "$on"
+}
+
+reader() {
+    if pkill -u "$(id -u)" -x orca; then
+        return
+    fi
+    orca --replace >/dev/null 2>&1 &
+}
+
+serve() {
+    local word a b
+    # read-write keeps the FIFO open, so a page writing never blocks
+    exec 3<>"$requests"
+    while read -r -u 3 word a b; do
+        case $word in
+            keyboard) keyboard "$a" "$b" ;;
+            osk) osk "$a" >/dev/null 2>&1 ;;
+            reader) reader ;;
+            disks) read_disks & ;;
+            power)
+                case $a in
+                    restart) sudo -n systemctl --no-wall reboot ;;
+                    poweroff) sudo -n systemctl --no-wall poweroff ;;
+                esac
+                ;;
+        esac
+    done
+}
+serve &
+server=$!
+
+# The screen reader runs as this account and Calamares as root: the
+# accessibility bus lets them meet, Calamares only needs its address.
+AT_SPI_BUS_ADDRESS=$(busctl --user call org.a11y.Bus /org/a11y/bus org.a11y.Bus GetAddress 2>/dev/null |
+    sed -n 's/^s "\(.*\)"$/\1/p')
+export AT_SPI_BUS_ADDRESS QT_ACCESSIBILITY=1
+# the pages read the flags and write their requests with XMLHttpRequest
+export QML_XHR_ALLOW_FILE_READ=1 QML_XHR_ALLOW_FILE_WRITE=1
+# Calamares goes through Xwayland: as a native Wayland client its QML pages
+# never get the keyboard (a click shows focus, no key ever arrives), with
+# its own stock pages too. KWin gives Xwayland the same keyboard layout.
+export QT_QPA_PLATFORM=xcb
+# KWin's Xwayland has no cookie file to hand over: let root in by name
+xhost +si:localuser:root >/dev/null
+
+# Setup that dies is started again; if it cannot even start twice in a row,
+# the session falls back to the desktop (raye-setup-session). The disk
+# password has its own folder, root's alone, and never outlives a run of
+# Setup: quit, crash or done, or this session ending under it.
+trap 'sudo -n /usr/libexec/raye-setup-private clear' EXIT
+trap 'exit 130' INT TERM HUP
+quick=0
+while :; do
+    sudo -n /usr/libexec/raye-setup-private prepare
+    started=$(date +%s)
+    sudo -n --preserve-env=DISPLAY,XAUTHORITY,WAYLAND_DISPLAY,XDG_RUNTIME_DIR,XDG_SESSION_TYPE,XDG_CURRENT_DESKTOP,QT_QPA_PLATFORM,QT_QUICK_BACKEND,QT_ACCESSIBILITY,AT_SPI_BUS_ADDRESS,QML_XHR_ALLOW_FILE_READ,QML_XHR_ALLOW_FILE_WRITE,LANG,LANGUAGE,XCURSOR_THEME,XCURSOR_SIZE \
+        calamares
+    sudo -n /usr/libexec/raye-setup-private clear
+    if [ $(( $(date +%s) - started )) -lt 20 ]; then
+        quick=$((quick + 1))
+    else
+        quick=0
+    fi
+    [ "$quick" -ge 2 ] && break
+done
+
+sudo -n /usr/libexec/raye-setup-private clear
+touch "$dir/rescue"
+kill "$server" 2>/dev/null

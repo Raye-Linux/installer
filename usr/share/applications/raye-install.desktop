@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Install Raye Linux
+Name[fr]=Installer Raye Linux
+GenericName=Install the system
+GenericName[fr]=Installer le système
+Comment=Install Raye Linux on this computer
+Comment[fr]=Installer Raye Linux sur cet ordinateur
+Exec=/usr/bin/raye-install
+Icon=raye-eye
+Terminal=false
+StartupNotify=true
+Categories=Qt;System;
+Keywords=installer;calamares;system;

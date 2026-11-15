@@ -1,0 +1,18 @@
+#!/bin/sh
+# Starts Raye Setup from a desktop. The USB stick boots straight into Setup
+# (raye-setup-session); this is for when that session fell back to the
+# desktop because Setup would not start.
+
+# the disk page reads what raye-disks found; raye-setup-run does this too
+sudo install -d -o "$(id -u)" -g "$(id -g)" -m 0755 /run/raye-setup
+sudo /usr/libexec/raye-disks > /run/raye-setup/disks.json 2>/dev/null
+
+# the disk password goes to a folder only root can enter, and is gone
+# however Setup ends: so no exec, this shell has to be there after it
+sudo /usr/libexec/raye-setup-private prepare || exit 1
+trap 'sudo /usr/libexec/raye-setup-private clear' EXIT
+trap 'exit 130' INT TERM HUP
+
+export QML_XHR_ALLOW_FILE_READ=1 QML_XHR_ALLOW_FILE_WRITE=1
+sudo --preserve-env=WAYLAND_DISPLAY,XDG_RUNTIME_DIR,DISPLAY,XAUTHORITY,XDG_SESSION_TYPE,QT_QPA_PLATFORM,LANG,LANGUAGE,QML_XHR_ALLOW_FILE_READ,QML_XHR_ALLOW_FILE_WRITE \
+    calamares

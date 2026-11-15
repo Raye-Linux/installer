@@ -1,0 +1,14 @@
+[Desktop Entry]
+# The welcome after the first sign-in. It decides for itself whether it
+# has anything to show: with ~/.config/raye-first-run already written, or
+# with no recovery key to hand over, it exits before making a window.
+Type=Application
+Name=Raye welcome
+Name[fr]=Bienvenue dans Raye
+Comment=Hands over the disk recovery key after the first sign-in
+Comment[fr]=Remet la clé de récupération du disque après la première connexion
+Exec=/usr/bin/raye-first-run
+Icon=raye-eye
+NoDisplay=true
+OnlyShowIn=KDE;
+X-KDE-autostart-phase=2

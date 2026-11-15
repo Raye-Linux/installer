@@ -1,0 +1,8 @@
+module org.kde.plasma.networkmanagement
+Enums 1.0 Enums.qml
+singleton World 1.0 World.qml
+NetworkStatus 1.0 NetworkStatus.qml
+AvailableDevices 1.0 AvailableDevices.qml
+Handler 1.0 Handler.qml
+NetworkModel 1.0 NetworkModel.qml
+AppletProxyModel 1.0 AppletProxyModel.qml

@@ -1,0 +1,34 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: calamares-settings-raye
+Source: https://github.com/Raye-Linux/installer
+
+Files: *
+Copyright: 2026 techoraye
+License: GPL-3+
+
+Files: etc/calamares/modules/mount.conf etc/calamares/modules/fstab.conf
+       etc/calamares/modules/machineid.conf etc/calamares/modules/umount.conf
+       etc/calamares/modules/grubcfg.conf
+       etc/calamares/modules/shellprocess_fixconkeys_part1.conf
+       etc/calamares/modules/shellprocess_fixconkeys_part2.conf
+       usr/libexec/fixconkeys-part1 usr/libexec/fixconkeys-part2
+Copyright: 2014 Rohan Garg
+           2017-2024 Lubuntu Developers
+           2024 Kubuntu Developers
+           2026 techoraye
+License: GPL-3+
+Comment: Started from calamares-settings-ubuntu and adapted.
+
+Files: etc/calamares/branding/raye/*.png assets/*
+Copyright: 2026 techoraye
+License: CC-BY-SA-4.0
+ The full text is at https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+License: GPL-3+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ version 3 can be found in "/usr/share/common-licenses/GPL-3".
