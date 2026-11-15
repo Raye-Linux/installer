@@ -173,7 +173,7 @@ RayeFrame {
                 readonly property bool connecting: connectionState === PlasmaNM.Enums.Activating
                 readonly property bool secured: securityType !== PlasmaNM.Enums.NoneSecurity
                                                 && securityType !== PlasmaNM.Enums.UnknownSecurity
-                readonly property bool askingHere: page.asking === ssid
+                readonly property bool askingHere: page.asking === ssid && !connected
 
                 // only Wi-Fi networks: wired ones have no SSID
                 visible: ssid.length > 0
