@@ -2,12 +2,16 @@
 # Runs inside the new system, after the boot loader is in place.
 #
 # A person who could only start the install USB with its "Safe graphics"
-# entry (nomodeset) has a graphics card whose driver leaves the screen
-# black. The system we just installed would start without nomodeset, and
-# the screen would stay black after the first restart. Keep it: a drop-in
-# adds nomodeset to the normal boot entry, then update-grub writes the
-# menu again. The drop-in sorts after 50-raye.cfg, which sets the
-# command line; deleting the file (and running update-grub) undoes it.
+# entry (nomodeset) has a graphics card whose driver can leave the screen
+# black. The new system starts on the graphics ladder of raye-base
+# (/etc/grub.d/09_raye_graphics) one level down: amdgpu.dc=0, the older
+# display path of AMD cards, which keeps the real driver (full resolution,
+# acceleration). If that start does not reach the desktop twice, the boot
+# menu goes on to nomodeset by itself.
+#
+# The ladder needs GRUB to write its state on /boot (ext4 or FAT, which is
+# what Raye's installer makes). Anywhere else nomodeset is kept for good, as
+# before: a drop-in after 50-raye.cfg, then update-grub writes the menu again.
 #
 # A live session started without nomodeset changes nothing.
 
@@ -19,6 +23,12 @@ dropin=$root/etc/default/grub.d/90-raye-safe-graphics.cfg
 case " $(cat "$cmdline" 2>/dev/null) " in
     *" nomodeset "*) ;;
     *) exit 0 ;;
+esac
+
+fs=$(${RAYE_GRUB_PROBE:-grub-probe} --target=fs "$root/boot" 2>/dev/null || true)
+case $fs in
+ext2|ext3|ext4|fat)
+    exec ${RAYE_GRUB_EDITENV:-grub-editenv} "$root/boot/grub/grubenv" set raye_gfx_level=1 raye_gfx_fails=0 ;;
 esac
 
 mkdir -p "${dropin%/*}" || exit 1

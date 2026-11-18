@@ -1,3 +1,10 @@
+calamares-settings-raye (0.5.2~beta1) resolute; urgency=high
+
+  * An install made in Safe graphics starts on the graphics ladder
+    (amdgpu.dc=0, then nomodeset by itself) instead of nomodeset for good.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Wed, 18 Nov 2026 11:55:25 +0000
+
 calamares-settings-raye (0.5.1~beta1) resolute; urgency=medium
 
   * A system installed from the Safe graphics entry keeps nomodeset on

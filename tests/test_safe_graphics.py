@@ -22,15 +22,21 @@ LIVE_SAFE = ("BOOT_IMAGE=/casper/vmlinuz boot=casper noprompt nomodeset "
 LIVE_NORMAL = "BOOT_IMAGE=/casper/vmlinuz boot=casper noprompt quiet splash ---"
 
 
-def run(tmp_path, cmdline, grub_exit=0):
+def run(tmp_path, cmdline, grub_exit=0, fs="btrfs"):
     root = tmp_path / "target"
     root.mkdir(exist_ok=True)
     (tmp_path / "cmdline").write_text(cmdline + "\n")
     stub = tmp_path / "update-grub"
     stub.write_text(f'#!/bin/sh\necho run >> "{tmp_path}/runs"\nexit {grub_exit}\n')
     stub.chmod(0o755)
+    probe = tmp_path / "grub-probe"
+    probe.write_text(f"#!/bin/sh\necho {fs}\n")
+    probe.chmod(0o755)
+    editenv = tmp_path / "grub-editenv"
+    editenv.write_text(f'#!/bin/sh\necho "$@" > "{tmp_path}/grubenv-args"\n')
+    editenv.chmod(0o755)
     env = dict(os.environ, RAYE_ROOT=str(root), RAYE_CMDLINE=str(tmp_path / "cmdline"),
-               RAYE_UPDATE_GRUB=str(stub))
+               RAYE_UPDATE_GRUB=str(stub), RAYE_GRUB_PROBE=str(probe), RAYE_GRUB_EDITENV=str(editenv))
     r = subprocess.run(["sh", str(SCRIPT)], env=env, capture_output=True, text=True)
     runs = tmp_path / "runs"
     return r, root, len(runs.read_text().splitlines()) if runs.exists() else 0
@@ -108,3 +114,21 @@ def test_shipped_and_executable():
     paths = (REPO / "debian/raye-paths").read_text().split()
     assert "usr/libexec/raye-safe-graphics" in paths
     assert os.access(SCRIPT, os.X_OK)
+
+
+def test_a_plain_boot_partition_starts_on_the_graphics_ladder(tmp_path):
+    # Raye's own install: /boot is ext4, so GRUB can step down by itself.
+    # No nomodeset for good (800x600, no acceleration): the next start tries
+    # amdgpu.dc=0, the real driver on the older AMD display path.
+    r, root, runs = run(tmp_path, LIVE_SAFE, fs="ext4")
+    assert r.returncode == 0, r.stderr
+    assert not (root / DROPIN).exists()
+    assert runs == 0
+    assert (tmp_path / "grubenv-args").read_text().split() == [
+        str(root / "boot/grub/grubenv"), "set", "raye_gfx_level=1", "raye_gfx_fails=0"]
+
+
+def test_a_normal_start_never_touches_the_ladder(tmp_path):
+    r, root, runs = run(tmp_path, LIVE_NORMAL, fs="ext4")
+    assert r.returncode == 0
+    assert not (tmp_path / "grubenv-args").exists()
