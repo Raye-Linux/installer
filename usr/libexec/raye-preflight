@@ -9,6 +9,8 @@
 #   ntfs-busy <device>     something else holds it, or it is a FakeRAID set
 #   ntfs-unknown <device>  we did not understand this volume
 #   shared-efi <device>    another system of the same family owns EFI/ubuntu
+#   linux-hibernated <device>  a swap holding a Linux hibernation image: the
+#                          system it belongs to must not have its disk touched
 #
 # Read only: nothing is written, the ESPs are mounted read-only.
 #
@@ -56,6 +58,9 @@ lsblk -rnpo PATH,FSTYPE,PARTTYPE | while read -r dev fstype parttype; do
     case "$fstype" in
         BitLocker)
             echo "bitlocker $dev"
+            ;;
+        swsuspend)
+            echo "linux-hibernated $dev"
             ;;
         ntfs)
             # read-write: that is the question, since installing next to

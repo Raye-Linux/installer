@@ -192,3 +192,9 @@ def test_nothing_here_ever_forces_ntfsresize():
         code = re.sub(r"^\s*#.*$", "", path.read_text(), flags=re.M)
         for tool in ("ntfsresize", "ntfsfix"):
             assert tool not in code, f"{path} calls {tool}"
+
+
+def test_a_hibernated_linux_swap_is_named(tmp_path):
+    code, lines = run(tmp_path, "/dev/sda3 swsuspend 0657fd6d-a4ab-43c4-84e5-0933c84b4f4f\n/dev/sda2 ext4 -\n",
+                      no_probe=True)
+    assert lines == ["linux-hibernated /dev/sda3"], lines

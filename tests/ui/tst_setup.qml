@@ -529,5 +529,26 @@ Item {
                 verify(S.t("fr", key) !== key, "no French words for " + S.diskFindings[i])
             }
         }
-    }
+    
+        // a stick that can't be read fails the copy; the person has to hear
+        // "write the stick again", not "restart and try again"
+        function test_a_failed_read_of_the_stick_says_to_write_it_again() {
+            for (const message of ["Failed to unpack image \"/cdrom/casper/filesystem.squashfs\"",
+                                   "rsync failed with error code 23.\nrsync: read errors mapping \"/x\": Input/output error (5)"])
+                compare(S.failureKey(message, ""), "failedMedium", message)
+            compare(S.failureKey("Bootloader installation error", "grub-install: error"), "failedRestart")
+            compare(S.failureKey("", "SQUASHFS error: zlib decompression failed"), "failedMedium")
+            for (const lang of ["en", "fr"])
+                verify(S.t(lang, "failedMedium") !== "failedMedium" && S.t(lang, "failedMedium").indexOf("Rufus") < 0)
+        }
+
+        // another Linux owning EFI/ubuntu is no longer a reason to worry:
+        // Raye makes its own EFI partition next to it
+        function test_the_welcome_card_warns_only_about_real_trouble() {
+            compare(S.warnings(["shared-efi"]).length, 0)
+            compare(S.warnings(["linux-hibernated", "shared-efi", "bitlocker", "something-new"]),
+                    ["linux-hibernated", "bitlocker"])
+            compare(S.beforeKey(["linux-hibernated"]), "beforeTitleDisk")
+        }
+}
 }

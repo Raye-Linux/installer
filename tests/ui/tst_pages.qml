@@ -164,6 +164,16 @@ Item {
             return shown(page)
         }
 
+        // ---- network page: once the network is connected the key box closes
+        // (2026-11-15 photo: "Connected" with the key field still open under it)
+        function test_a_connected_network_hides_its_key_field() {
+            const page = network(4, true, false, [wifiRow("Home", PlasmaNM.Enums.Activated)])
+            page.asking = "Home"
+            wait(50)
+            const words = shown(page)
+            verify(words.indexOf(S.t(page.lang, "connect")) < 0, "the key field is still open: " + words)
+        }
+
         // ---- network page: never blank
 
         function test_online_by_cable_says_so_with_the_cable_in_the_model() {

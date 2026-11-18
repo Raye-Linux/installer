@@ -222,6 +222,85 @@ TestCase {
         compare(Logic.passphraseShown(true, "long enough", "long", "fr"), S.t("fr", "diskPassMismatch"))
         compare(Logic.passphraseShown(false, "x", "y", "en"), "")
     }
+    // Windows asks before it deletes a partition; Raye asks before any card
+    // that deletes or resizes something is picked
+    function linuxDisk() {
+        const disk = blank()
+        disk.empty = false
+        disk.parts = [{ node: "/dev/sda2", start: 2048, sectors: 100 * gib / 512, os: "Arch Linux", fstype: "btrfs" }]
+        disk.options = [{ mode: "shrink", node: "/dev/sda2", name: "Arch Linux", fstype: "btrfs",
+                          total: 100 * gib, keepMin: 40 * gib, keepMax: 70 * gib, keepDefault: 50 * gib },
+                        { mode: "free", start: 300000000, bytes: 30 * gib },
+                        { mode: "replace", node: "/dev/sda2", name: "Arch Linux", fstype: "btrfs", bytes: 100 * gib },
+                        { mode: "erase" }]
+        disk.refused = [{ mode: "shrink", node: "/dev/sda4", name: "Fedora Linux", finding: "xfs" }]
+        return disk
+    }
+    function test_replacing_asks_first_and_names_the_system() {
+        const made = page([linuxDisk()])
+        made.ask(2)
+        compare(made.option, null, "nothing is picked while the box asks")
+        verify(made.question !== null)
+        verify(made.question.title.indexOf("Arch Linux") >= 0, made.question.title)
+        made.answerQuestion(true)
+        compare(made.option.mode, "replace")
+        verify(made.complete)
+    }
+    function test_saying_no_keeps_the_disk_as_it_was() {
+        const made = page([linuxDisk()])
+        made.ask(3)
+        compare(made.question.title, S.t("en", "confirmEraseTitle"))
+        made.answerQuestion(false)
+        compare(made.option, null)
+        compare(made.asking, -1)
+        verify(!made.complete)
+    }
+    function test_shrinking_asks_too() {
+        const made = page([linuxDisk()])
+        made.ask(0)
+        compare(made.option, null)
+        verify(made.question.title.indexOf("Arch Linux") >= 0)
+        made.answerQuestion(true)
+        compare(made.option.mode, "shrink")
+        compare(made.keep, 50 * gib)
+    }
+    function test_free_space_is_picked_without_a_question() {
+        const made = page([linuxDisk()])
+        made.ask(1)
+        compare(made.asking, -1)
+        compare(made.option.mode, "free")
+    }
+    function test_a_click_on_a_card_that_asks_leaves_it_unchecked() {
+        const made = page([linuxDisk()])
+        const card = find(made, Logic.title(made.options[2], made.disk, "en"))
+        verify(card !== null)
+        mouseClick(card)
+        verify(!card.checked, "the card only shows picked once the box said yes")
+        verify(made.asking === 2)
+        made.answerQuestion(true)
+        verify(card.checked)
+    }
+    function test_questions_read_well_in_both_languages() {
+        const disk = linuxDisk()
+        const unnamed = { mode: "replace", node: "/dev/sda5", fstype: "ext4", bytes: 60 * gib }
+        for (const lang of ["en", "fr"]) {
+            for (const o of disk.options.concat([unnamed])) {
+                const q = Logic.confirm(o, disk, lang)
+                if (o.mode === "free") {
+                    compare(q, null)
+                    continue
+                }
+                for (const part of [q.title, q.text, q.button])
+                    verify(part.length > 0 && part.indexOf("%") < 0 && part.indexOf("confirm") !== 0, part)
+            }
+            compare(Logic.confirm({ mode: "erase" }, blank(), lang), null, "an empty disk loses nothing")
+            verify(Logic.title(unnamed, disk, lang).indexOf("sda5") >= 0, "a partition nobody named is called by its name")
+            const why = Logic.refusedText(disk.refused[0], lang)
+            verify(why.indexOf("Fedora Linux") >= 0 && why.indexOf("%") < 0, why)
+            verify(Logic.refusedText({ reason: "full-table" }, lang).indexOf("fullTable") !== 0)
+            verify(Logic.shrinkNote(disk.options[0], lang) !== Logic.shrinkNote({ fstype: "ntfs" }, lang))
+        }
+    }
 }
 
 TestCase {

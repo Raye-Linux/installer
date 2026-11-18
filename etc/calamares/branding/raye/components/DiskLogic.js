@@ -25,8 +25,16 @@ function diskLine(disk, lang) {
     return diskLabel(disk) + " · " + size(disk.size, lang)
 }
 
+// What the person calls the thing a card changes: the system os-prober
+// named, else the partition itself ("partition sda3 (ext4)"), never a bare
+// file system name
 function systemName(option, lang) {
-    return option.name || (option.fstype ? option.fstype : S.t(lang, "diskThisPartition"))
+    if (option.name)
+        return option.name
+    if (option.node)
+        return S.t(lang, "diskReplacePartition", [String(option.node).replace("/dev/", ""),
+                                                  option.fstype || size(option.bytes || 0, lang)])
+    return S.t(lang, "diskThisPartition")
 }
 
 function title(option, disk, lang) {
@@ -57,9 +65,37 @@ function deletes(option, disk) {
 function refusedText(refusal, lang) {
     if (refusal.reason === "old-table")
         return S.t(lang, "diskOldTable")
+    if (refusal.reason === "full-table")
+        return S.t(lang, "fullTable")
     if (refusal.reason === "shared-efi")
         return S.t(lang, "sharedEfi")
-    return S.t(lang, S.findingKey(refusal.finding))
+    return S.t(lang, S.findingKey(refusal.finding), [refusal.name || S.t(lang, "diskThisPartition")])
+}
+
+// The note under the size slider: Windows checks its disk afterwards,
+// another Linux does not
+function shrinkNote(option, lang) {
+    return S.t(lang, option && option.fstype && option.fstype !== "ntfs" ? "diskShrinkNoteLinux" : "diskShrinkNote")
+}
+
+// The question asked before a card that deletes or resizes something is
+// picked, as Windows asks before it deletes a partition. null: nothing to ask.
+function confirm(option, disk, lang) {
+    if (!option)
+        return null
+    if (option.mode === "erase" && !disk.empty)
+        return { title: S.t(lang, "confirmEraseTitle"),
+                 text: S.t(lang, "confirmEraseText", [diskLabel(disk)]),
+                 button: S.t(lang, "confirmErase"), danger: true }
+    if (option.mode === "replace")
+        return { title: S.t(lang, "confirmReplaceTitle", [systemName(option, lang)]),
+                 text: S.t(lang, "confirmReplaceText", [systemName(option, lang), size(option.bytes, lang)]),
+                 button: S.t(lang, "confirmReplace"), danger: true }
+    if (option.mode === "shrink")
+        return { title: S.t(lang, "confirmShrinkTitle", [systemName(option, lang)]),
+                 text: S.t(lang, "confirmShrinkText", [systemName(option, lang)]),
+                 button: S.t(lang, "confirmShrink"), danger: false }
+    return null
 }
 
 function blockedText(blocked, lang) {

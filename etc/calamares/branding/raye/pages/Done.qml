@@ -66,7 +66,7 @@ RayeFrame {
         Text {
             Layout.fillWidth: true
             visible: config.failed
-            text: S.t(page.lang, "failedRestart")
+            text: S.t(page.lang, S.failureKey(config.failureMessage, config.failureDetails))
             font: Theme.body
             color: Theme.textSecondary
             wrapMode: Text.WordWrap

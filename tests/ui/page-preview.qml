@@ -1,6 +1,7 @@
 // One page of Raye Setup in a window, against the fakes tst_pages.qml uses:
 //   tests/ui/run-page-preview.sh <Page.qml> <step> <scenario> [LANG]
-// Scenarios: cable, wifi, offline, encrypted, plain.
+// Scenarios: cable, wifi, offline, encrypted, plain; for Disk.qml linux,
+// linux-ask (the "Delete ...?" box), linux-shrink and bios.
 import QtQuick
 import QtQuick.Window
 import io.calamares.core 1.0
@@ -54,12 +55,47 @@ Window {
             // what the disk and keyboard pages leave for "Ready to install"
             if ("keyboard" in item)
                 item.keyboard = "English (US)"
+            if ("report" in item)
+                win.showDisks(item)
             if ("diskLabel" in item) {
                 item.install = "erase"
                 item.diskLabel = "QEMU HARDDISK (/dev/sda)"
                 item.encrypted = win.scenario !== "plain"
                 item.diskDetails = "Everything on QEMU HARDDISK (/dev/sda) is deleted."
             }
+        }
+    }
+
+    readonly property real gib: 1024 * 1024 * 1024
+    function showDisks(page) {
+        const linux = { node: "/dev/nvme0n1", model: "Samsung SSD 980", size: 500 * gib, sector: 512, first: 2048,
+                        last: 500 * gib / 512 - 34, id: "a", empty: false, blocked: "",
+                        parts: [{ node: "/dev/nvme0n1p1", start: 2048, sectors: gib / 512, fstype: "vfat" },
+                                { node: "/dev/nvme0n1p2", start: 2048 + gib / 512, sectors: 380 * gib / 512, fstype: "btrfs", os: "Arch Linux" },
+                                { node: "/dev/nvme0n1p3", start: 2048 + 381 * gib / 512, sectors: 100 * gib / 512, fstype: "xfs", os: "Fedora Linux" }],
+                        options: [{ mode: "shrink", node: "/dev/nvme0n1p2", name: "Arch Linux", fstype: "btrfs",
+                                    total: 380 * gib, keepMin: 60 * gib, keepMax: 350 * gib, keepDefault: 190 * gib },
+                                  { mode: "free", start: 2048 + 481 * gib / 512, bytes: 18 * gib },
+                                  { mode: "replace", node: "/dev/nvme0n1p2", name: "Arch Linux", fstype: "btrfs", bytes: 380 * gib },
+                                  { mode: "replace", node: "/dev/nvme0n1p3", name: "Fedora Linux", fstype: "xfs", bytes: 100 * gib },
+                                  { mode: "erase" }],
+                        refused: [{ mode: "shrink", node: "/dev/nvme0n1p3", name: "Fedora Linux", finding: "xfs" }] }
+        const old = { node: "/dev/sda", model: "WDC WD5000", size: 500 * gib, sector: 512, first: 2048,
+                      last: 500 * gib / 512 - 1, id: "b", empty: false, blocked: "", table: "dos",
+                      parts: [{ node: "/dev/sda1", start: 2048, sectors: gib / 1024, fstype: "ntfs", label: "System Reserved" },
+                              { node: "/dev/sda2", start: 2048 + gib / 1024, sectors: 499 * gib / 512, fstype: "ntfs", os: "Windows" }],
+                      options: [{ mode: "shrink", node: "/dev/sda2", name: "Windows", fstype: "ntfs",
+                                  total: 499 * gib, keepMin: 80 * gib, keepMax: 470 * gib, keepDefault: 250 * gib },
+                                { mode: "replace", node: "/dev/sda2", name: "Windows", fstype: "ntfs", bytes: 499 * gib },
+                                { mode: "erase" }],
+                      refused: [] }
+        page.report = { firmware: scenario === "bios" ? "bios" : "efi", disks: [scenario === "bios" ? old : linux] }
+        page.scanning = false
+        page.choose(0)
+        if (scenario === "linux-ask")
+            page.ask(2)
+        if (scenario === "linux-shrink") {
+            page.pick(0)
         }
     }
 

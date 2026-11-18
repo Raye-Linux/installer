@@ -52,7 +52,15 @@ var words = {
         ntfsCheck: "Windows wants to check this disk before anything else touches it. Start Windows, open a command prompt as administrator, run chkdsk /f, and restart Windows twice so it finishes.",
         ntfsBusy: "Something else is holding this Windows volume -- another system that is still running, or a RAID set the firmware set up. Raye can't make room next to it.",
         ntfsUnknown: "Raye couldn't make sense of the Windows volume on this disk, so it won't try to resize it. Erase the disk or pick another one.",
-        sharedEfi: "Another Linux system is on this disk. Installed next to it, Raye would replace how it starts. Erase the disk or pick another one instead.",
+        sharedEfi: "Another Linux system starts from this disk. Raye gets a boot partition of its own next to it, so that system keeps starting the way it does now.",
+        linuxHibernated: "A Linux system on this disk is hibernated. Start it, shut it down normally, then come back.",
+        linuxCheck: "%1 wasn't shut down properly, so Raye won't resize it. Start it, shut it down normally, then come back.",
+        linuxUnknown: "Raye couldn't read %1 well enough to resize it safely.",
+        btrfsMulti: "%1 spans more than one disk, so Raye can't make it smaller.",
+        xfs: "%1 uses XFS, which can't be made smaller. You can still replace it or use free space.",
+        encrypted: "%1 is encrypted, so Raye can't make it smaller. You can still replace it or use free space.",
+        lvm: "%1 uses LVM, so Raye can't make it smaller. You can still replace it or use free space.",
+        fullTable: "This disk's older layout already holds as many partitions as it can, so Raye can only be installed on it by erasing it.",
         eraseStillFine: "You can still go on if you mean to erase the disk.",
 
         regionTitle: "Is this the right country or region?",
@@ -110,6 +118,18 @@ var words = {
         diskShrinkTitle: "Install next to %1",
         diskShrinkLine: "%1 and your files stay. Raye takes room from its volume.",
         diskShrinkNote: "Windows may check its disk the first time it starts afterwards. Let it finish.",
+        diskShrinkNoteLinux: "Raye checks the volume first and stops if anything looks wrong. Back up anything you can't lose before you go on.",
+        diskReplacePartition: "partition %1 (%2)",
+        confirmCancel: "Cancel",
+        confirmEraseTitle: "Erase this disk?",
+        confirmEraseText: "Everything on %1 will be deleted: files, apps, settings and any other system on it. This can't be undone.",
+        confirmErase: "Erase",
+        confirmReplaceTitle: "Delete %1?",
+        confirmReplaceText: "Everything on %1 (%2) will be deleted, including the files on it. The rest of the disk stays as it is. This can't be undone.",
+        confirmReplace: "Delete",
+        confirmShrinkTitle: "Make %1 smaller?",
+        confirmShrinkText: "Raye checks %1, then makes it smaller to make room. Its files stay, but a power cut in the middle can damage them, so back up anything important first.",
+        confirmShrink: "Continue",
         diskSlider: "How much room each system gets",
         diskFreeTitle: "Use the free space",
         diskFreeLine: "%1 not used by anything. Nothing else on the disk changes.",
@@ -222,6 +242,7 @@ var words = {
         failedText: "Raye couldn't be installed.",
         failedDetails: "What happened",
         failedRestart: "Restart your PC and try again. If it happens again, the details below help find out why.",
+        failedMedium: "Raye couldn't read the USB stick it started from: it may have been written badly or be worn out. Write the stick again, on another one if you can, and start over.",
         licences: "Licenses",
         licenceText: "Raye Setup uses Calamares, free software under the GNU GPL 3.0 or later. © 2014-2017 Teo Mrnjavac, © 2017-2024 Adriaan de Groot and the Calamares team."
     },
@@ -269,7 +290,15 @@ var words = {
         ntfsCheck: "Windows veut vérifier ce disque avant que quoi que ce soit d'autre y touche. Démarrez Windows, ouvrez une invite de commandes en administrateur, lancez chkdsk /f, puis redémarrez Windows deux fois pour qu'il termine.",
         ntfsBusy: "Quelque chose retient ce volume Windows\u00a0: un autre système encore en marche, ou un ensemble RAID monté par le firmware. Raye ne peut pas faire de place à côté.",
         ntfsUnknown: "Raye n'a pas réussi à lire le volume Windows de ce disque, il n'essaiera donc pas de le redimensionner. Effacez le disque ou choisissez-en un autre.",
-        sharedEfi: "Un autre système Linux est installé sur ce disque. Installé à côté, Raye remplacerait son démarrage. Effacez plutôt le disque ou choisissez-en un autre.",
+        sharedEfi: "Un autre système Linux démarre depuis ce disque. Raye y crée sa propre partition de démarrage, et cet autre système continue de démarrer comme avant.",
+        linuxHibernated: "Un système Linux de ce disque est en veille prolongée. Démarrez-le, éteignez-le normalement, puis revenez ici.",
+        linuxCheck: "%1 n'a pas été arrêté correctement, Raye ne le redimensionne donc pas. Démarrez-le, éteignez-le normalement, puis revenez ici.",
+        linuxUnknown: "Raye n'a pas pu lire %1 assez bien pour le redimensionner sans risque.",
+        btrfsMulti: "%1 s'étend sur plusieurs disques\u00a0: Raye ne peut pas le réduire.",
+        xfs: "%1 utilise XFS, qui ne peut pas être réduit. Vous pouvez quand même le remplacer ou utiliser l'espace libre.",
+        encrypted: "%1 est chiffré\u00a0: Raye ne peut pas le réduire. Vous pouvez quand même le remplacer ou utiliser l'espace libre.",
+        lvm: "%1 utilise LVM\u00a0: Raye ne peut pas le réduire. Vous pouvez quand même le remplacer ou utiliser l'espace libre.",
+        fullTable: "L'ancienne disposition de ce disque contient déjà autant de partitions que possible\u00a0: Raye ne peut s'y installer qu'en l'effaçant.",
         eraseStillFine: "Vous pouvez quand même continuer si vous comptez effacer le disque.",
 
         regionTitle: "Est-ce le bon pays ou la bonne région ?",
@@ -327,6 +356,18 @@ var words = {
         diskShrinkTitle: "Installer à côté de %1",
         diskShrinkLine: "%1 et vos fichiers restent. Raye prend de la place sur son volume.",
         diskShrinkNote: "Windows peut vérifier son disque la première fois qu'il démarre ensuite. Laissez-le terminer.",
+        diskShrinkNoteLinux: "Raye vérifie d'abord le volume et s'arrête si quelque chose cloche. Sauvegardez ce que vous ne voulez pas perdre avant de continuer.",
+        diskReplacePartition: "la partition %1 (%2)",
+        confirmCancel: "Annuler",
+        confirmEraseTitle: "Effacer ce disque\u00a0?",
+        confirmEraseText: "Tout ce qui se trouve sur %1 sera supprimé\u00a0: fichiers, applis, paramètres et tout autre système. Impossible de revenir en arrière.",
+        confirmErase: "Effacer",
+        confirmReplaceTitle: "Supprimer %1\u00a0?",
+        confirmReplaceText: "Tout ce qui se trouve sur %1 (%2) sera supprimé, y compris ses fichiers. Le reste du disque ne change pas. Impossible de revenir en arrière.",
+        confirmReplace: "Supprimer",
+        confirmShrinkTitle: "Réduire %1\u00a0?",
+        confirmShrinkText: "Raye vérifie %1, puis le réduit pour faire de la place. Ses fichiers restent, mais une coupure de courant au milieu peut les abîmer\u00a0: sauvegardez d'abord ce qui compte.",
+        confirmShrink: "Continuer",
         diskSlider: "La place donnée à chaque système",
         diskFreeTitle: "Utiliser l'espace libre",
         diskFreeLine: "%1 inutilisés. Rien d'autre ne change sur le disque.",
@@ -439,6 +480,7 @@ var words = {
         failedText: "Raye n'a pas pu être installé.",
         failedDetails: "Ce qui s'est passé",
         failedRestart: "Redémarrez votre PC et réessayez. Si cela se reproduit, les détails ci-dessous aident à en trouver la cause.",
+        failedMedium: "La clé USB de démarrage n'a pas pu être lue correctement\u00a0: mal écrite ou usée, sans doute. Écrivez-la de nouveau, sur une autre clé si possible, et recommencez.",
         licences: "Licences",
         licenceText: "L'installation de Raye utilise Calamares, logiciel libre sous licence GNU GPL 3.0 ou ultérieure. © 2014-2017 Teo Mrnjavac, © 2017-2024 Adriaan de Groot et l'équipe Calamares."
     }
@@ -488,7 +530,17 @@ function languageRow(label, englishLabel) {
 
 // What raye-preflight can print, in the order the card shows them.
 var diskFindings = ["bitlocker", "hibernated", "ntfs-dirty", "ntfs-check",
-                    "ntfs-busy", "ntfs-unknown", "shared-efi"]
+                    "ntfs-busy", "ntfs-unknown", "shared-efi", "linux-hibernated"]
+
+// What the disk page can say about one volume it won't make smaller, on
+// top of those: none of them comes from raye-preflight.
+var volumeFindings = ["linux-check", "linux-unknown", "btrfs-multi", "xfs", "encrypted", "lvm"]
+
+// The findings the language page warns about. shared-efi is not one any
+// more: Raye makes its own EFI partition next to the other system.
+function warnings(found) {
+    return found.filter(function(f) { return diskFindings.indexOf(f) >= 0 && f !== "shared-efi" })
+}
 
 // The ones Windows itself has to fix. The rest are not Windows' doing, and
 // the card's title must not say they are: the 2026-11-02 image headed a
@@ -510,6 +562,18 @@ function beforeKey(found) {
         if (windowsFindings.indexOf(found[i]) >= 0)
             return "beforeTitle"
     return "beforeTitleDisk"
+}
+
+// What to tell the person under a failed install. Reading the image off
+// the stick is the step a badly written or worn stick fails, and the cure
+// is a new stick, not a restart.
+var mediumErrors = ["casper/filesystem.squashfs", "Input/output error", "SQUASHFS error"]
+function failureKey(message, details) {
+    var text = String(message || "") + "\n" + String(details || "")
+    for (var i = 0; i < mediumErrors.length; ++i)
+        if (text.indexOf(mediumErrors[i]) >= 0)
+            return "failedMedium"
+    return "failedRestart"
 }
 
 // ------------------------------------------------ while Raye installs

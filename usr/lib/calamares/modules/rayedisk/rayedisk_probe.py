@@ -10,7 +10,8 @@ import os
 import re
 import subprocess
 
-from rayedisk_core import ESP_TYPE, bytes_of_ntfsresize
+from rayedisk_core import (ESP_TYPE, LINUX_FS, btrfs_info, bytes_of_ntfsresize, ext_info,
+                           ext_minimum)
 
 LIVE_MOUNTS = {"/cdrom", "/run/live/medium", "/isodevice"}
 # lsblk calls these "disk" too; zram is the live session's own memory
@@ -118,6 +119,33 @@ def ntfs_minimum(node, run=run_text):
     return bytes_of_ntfsresize(text) if code == 0 else None
 
 
+def linux_details(node, fstype, run=run_text):
+    """(findings, minimum bytes, btrfs device id) of an unmounted Linux volume.
+
+    Read only: dumpe2fs, resize2fs -P and btrfs dump-super only look.
+    A minimum of None means it is not offered for shrinking.
+    """
+    if fstype == "btrfs":
+        code, text = run(["btrfs", "inspect-internal", "dump-super", node])
+        info = btrfs_info(text) if code == 0 else None
+        if info is None:
+            return [], None, None
+        if info["devices"] > 1:
+            return ["btrfs-multi"], None, None
+        if info["log"]:
+            # a log tree left behind: the system was not shut down cleanly
+            return ["linux-check"], None, None
+        return [], info["used"], info["devid"]
+    code, text = run(["dumpe2fs", "-h", node])
+    info = ext_info(text) if code == 0 else None
+    if info is None:
+        return [], None, None
+    if not info["clean"]:
+        return ["linux-check"], None, None
+    code, text = run(["resize2fs", "-P", node])
+    return [], ext_minimum(text, info["block"]) if code == 0 else None, None
+
+
 def is_windows(node, run=run_text):
     code, _ = run(["ntfsls", "--force", "--path", "/Windows/System32", node])
     return code == 0
@@ -140,6 +168,9 @@ def _unknown_findings(entry, fstype):
         return ["shared-efi"]
     if fstype == "ntfs":
         return ["ntfs-unknown"]
+    if fstype in LINUX_FS:
+        # a hibernated Linux is only seen by raye-preflight
+        return ["linux-unknown"]
     return []
 
 
@@ -194,15 +225,24 @@ def read_disk(blk, findings, names, run=run_text, look=True):
                 part["os"] = names[entry["node"]]
         elif part["fstype"] == "ntfs" and not part["findings"]:
             part["shrink_minimum"] = ntfs_minimum(entry["node"], run)
+        if part["fstype"] in LINUX_FS and not part["mounted"] and not part["findings"]:
+            more, minimum, devid = linux_details(entry["node"], part["fstype"], run)
+            part["findings"] = part["findings"] + more
+            if minimum:
+                part["shrink_minimum"] = minimum
+            if devid:
+                part["btrfs_devid"] = devid
         parts.append(part)
     sector = int(table.get("sectorsize") or blk.get("log-sec") or 512)
     size = int(blk.get("size") or 0)
     label = table.get("label", "") or "none"
+    # an old-style table has no backup at the end: it may use the last sector
+    last_default = size // sector - (1 if label == "dos" else 34)
     return {"node": node, "model": (blk.get("model") or "").strip(), "size": size, "sector": sector,
             "removable": bool(blk.get("rm")), "tran": blk.get("tran") or "",
             "table": label if label in ("gpt", "dos") else "none" if label == "none" else label,
             "first": int(table.get("firstlba") or 2048),
-            "last": int(table.get("lastlba") or (size // sector - 34)),
+            "last": int(table.get("lastlba") or last_default),
             "parts": parts, "holders": holders, "live": live, "unreadable": unreadable,
             "signature": blk.get("fstype") or "", "hardware": hardware,
             "id": fingerprint(node, size, blk.get("fstype"), run, hardware, blk.get("uuid") or "")}

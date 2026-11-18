@@ -116,12 +116,12 @@ def test_an_old_partition_table_gets_a_reason_and_only_erase():
     assert refused == [{"mode": "beside", "reason": "old-table"}]
 
 
-def test_a_shared_efi_folder_stops_every_install_beside_it():
+def test_a_shared_efi_folder_gets_raye_its_own_instead():
     parts = windows()
     parts[0]["findings"] = ["shared-efi"]
     options, refused = core.options_for(disk(parts))
-    assert [o["mode"] for o in options] == ["erase"]
-    assert {"mode": "beside", "reason": "shared-efi"} in refused
+    assert option(options, "shrink") and option(options, "replace")
+    assert refused == []
 
 
 def test_the_usb_stick_and_small_or_busy_disks_offer_nothing():
@@ -211,9 +211,9 @@ def test_an_answer_that_no_longer_matches_is_refused(change, code):
     assert no.value.code == code
 
 
-def test_a_machine_without_efi_is_refused():
+def test_a_machine_whose_firmware_is_unknown_is_refused():
     with pytest.raises(core.Refused) as no:
-        core.plan(disk([], table="none"), "bios", answer("erase"), False)
+        core.plan(disk([], table="none"), "", answer("erase"), False)
     assert no.value.code == "no-efi"
 
 
@@ -262,9 +262,9 @@ def test_shrink_refuses_a_volume_that_turned_hibernated_since_the_page():
     assert no.value.code == "hibernated"
 
 
-def test_shrink_never_touches_a_partition_that_is_not_ntfs():
+def test_shrink_never_touches_a_filesystem_it_cannot_resize():
     parts = windows()
-    parts[2]["fstype"] = "ext4"
+    parts[2]["fstype"] = "vfat"
     with pytest.raises(core.Refused) as no:
         core.plan(disk(parts), "efi", answer("shrink", partition="/dev/sda3", keep=100 * GIB), False)
     assert no.value.code == "cannot-shrink"

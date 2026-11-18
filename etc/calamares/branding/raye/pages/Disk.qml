@@ -4,7 +4,8 @@
 // checks the answer again against the disk before it writes anything.
 //
 // Nothing is picked for the person unless the disk is empty: a card that
-// deletes something is only ever chosen by hand. Next waits for a choice
+// deletes something is only ever chosen by hand, and only once the box that
+// asks "Delete Arch Linux?" (or erase, or make smaller) says yes. Next waits for a choice
 // (calamares-navigation.qml reads disk-ready, there is no other way between
 // two QML engines).
 
@@ -92,6 +93,29 @@ RayeFrame {
         if (disk && disk.empty && disk.options.length === 1)
             optionIndex = 0
         save()
+    }
+
+    // a card that deletes or resizes asks first; the others are picked at once
+    property int asking: -1
+    readonly property var question: asking >= 0 && asking < options.length
+                                    ? Logic.confirm(options[asking], disk, lang) : null
+    function ask(index) {
+        if (index === optionIndex)
+            return
+        if (Logic.confirm(options[index], disk, lang) === null) {
+            pick(index)
+            return
+        }
+        asking = index
+        confirmBox.showOver()
+        confirmCard.forceActiveFocus()
+    }
+    function answerQuestion(yes) {
+        const index = asking
+        asking = -1
+        confirmBox.hide()
+        if (yes && index >= 0)
+            pick(index)
     }
 
     function pick(index) {
@@ -203,7 +227,11 @@ RayeFrame {
                     title: Logic.title(modelData, page.disk, page.lang)
                     description: Logic.line(modelData, page.disk, page.lang)
                     danger: Logic.deletes(modelData, page.disk)
-                    onClicked: page.pick(index)
+                    onClicked: {
+                        // the click checked the card; what is picked says if it stays
+                        checked = Qt.binding(() => index === page.optionIndex)
+                        page.ask(index)
+                    }
                 }
             }
 
@@ -268,7 +296,7 @@ RayeFrame {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: S.t(page.lang, "diskShrinkNote")
+                    text: Logic.shrinkNote(page.option, page.lang)
                     font: Theme.caption
                     color: Theme.textTertiary
                     wrapMode: Text.WordWrap
@@ -377,6 +405,71 @@ RayeFrame {
                 visible: !page.scanning
                 text: S.t(page.lang, "diskLookAgain")
                 onClicked: page.lookAgain()
+            }
+        }
+    }
+
+    // "Delete Arch Linux?": a window of its own over the whole screen, so
+    // nothing behind it can be clicked while it asks
+    Overlay {
+        id: confirmBox
+        over: page
+        title: page.question ? page.question.title : ""
+        onVisibleChanged: if (!visible && page.asking >= 0) page.answerQuestion(false)
+
+        Rectangle {
+            id: confirmCard
+            anchors.centerIn: parent
+            width: Math.min(480, parent.width - 48)
+            height: box.implicitHeight + 48
+            radius: Theme.radiusCard
+            color: Theme.backgroundBottom
+            border.color: Theme.surfaceStroke
+            focus: true
+            Keys.onEscapePressed: page.answerQuestion(false)
+            MouseArea { anchors.fill: parent }
+            Accessible.role: Accessible.AlertMessage
+            Accessible.name: page.question ? page.question.title : ""
+
+            ColumnLayout {
+                id: box
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
+                spacing: 12
+                Text {
+                    objectName: "confirmTitle"
+                    Layout.fillWidth: true
+                    text: page.question ? page.question.title : ""
+                    font: Theme.subtitle
+                    color: Theme.textPrimary
+                    wrapMode: Text.WordWrap
+                    Accessible.role: Accessible.Heading
+                }
+                Text {
+                    objectName: "confirmText"
+                    Layout.fillWidth: true
+                    text: page.question ? page.question.text : ""
+                    font: Theme.body
+                    color: Theme.textSecondary
+                    wrapMode: Text.WordWrap
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 12
+                    spacing: 8
+                    Item { Layout.fillWidth: true }
+                    PrimaryButton {
+                        objectName: "confirmYes"
+                        Layout.minimumWidth: 120
+                        text: page.question ? page.question.button : ""
+                        onClicked: page.answerQuestion(true)
+                    }
+                    SubtleButton {
+                        objectName: "confirmNo"
+                        Layout.minimumWidth: 120
+                        text: S.t(page.lang, "confirmCancel")
+                        onClicked: page.answerQuestion(false)
+                    }
+                }
             }
         }
     }

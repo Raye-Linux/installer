@@ -6,7 +6,9 @@ The order is what keeps someone's data:
  1. Shrink the filesystem first. A failure leaves a smaller filesystem in a
     partition of the old size, which every system reads without complaint.
     ntfsresize runs a dry pass first and is never given --force: what it
-    refuses, it refuses for a reason only Windows can fix.
+    refuses, it refuses for a reason only Windows can fix. An ext volume
+    is checked read-only first, a btrfs one too; either one found wrong
+    is left as it is.
  2. Write the table, keeping a copy of the old one.
  3. Read the table back and compare, BEFORE anything is formatted.
  4. Format only what the plan just created.
@@ -18,7 +20,7 @@ import os
 import stat
 import time
 
-from rayedisk_core import Refused, check_written, table_script
+from rayedisk_core import Refused, btrfs_info, check_written, ext_info, table_script
 
 # Root's alone (raye-setup-private makes it). /run/raye-setup belongs to the
 # live account: a name opened there could be a link to any file root can write.
@@ -32,6 +34,7 @@ class CommandFailed(Exception):
     def __init__(self, argv, code, error):
         super().__init__(f"{' '.join(argv[:2])} exited with {code}: {error.strip()[-400:]}")
         self.argv = argv
+        self.code = code
 
 
 def backup_name(disk):
@@ -110,6 +113,17 @@ class Writer:
                 raise Refused("in-use", node)
 
     def shrink_filesystem(self, shrink):
+        fstype = shrink.get("fstype") or "ntfs"
+        if fstype == "ntfs":
+            self.shrink_ntfs(shrink)
+        elif fstype in ("ext2", "ext3", "ext4"):
+            self.shrink_ext(shrink)
+        elif fstype == "btrfs":
+            self.shrink_btrfs(shrink)
+        else:
+            raise Refused("cannot-shrink", shrink["node"])
+
+    def shrink_ntfs(self, shrink):
         node, size = shrink["node"], str(shrink["bytes"])
         self.note(f"checking {node} before shrinking it")
         self.run(["ntfs-3g.probe", "--readwrite", node])
@@ -126,12 +140,58 @@ class Writer:
         if current is None or current > shrink["bytes"]:
             raise Refused("table-mismatch", node)
 
+    def shrink_ext(self, shrink):
+        node = shrink["node"]
+        self.note(f"checking {node} before shrinking it")
+        # -n changes nothing: anything it finds wrong is for the other
+        # system to repair, not for Raye
+        try:
+            self.run(["e2fsck", "-f", "-n", node])
+        except CommandFailed as failed:
+            raise Refused("linux-check", node) from failed
+        # resize2fs wants a check newer than the last mount. The read-only
+        # pass found nothing wrong, so 1 here only means it tidied up
+        try:
+            self.run(["e2fsck", "-f", "-y", node])
+        except CommandFailed as failed:
+            if failed.code != 1:
+                raise
+        self.note(f"shrinking the filesystem on {node} to {shrink['bytes']} bytes")
+        self.run(["resize2fs", node, "%dK" % (shrink["bytes"] // 1024)])
+        info = ext_info(self.run(["dumpe2fs", "-h", node]))
+        if info is None or info["bytes"] > shrink["bytes"]:
+            raise Refused("table-mismatch", node)
+
+    def shrink_btrfs(self, shrink):
+        node = shrink["node"]
+        self.note(f"checking {node} before shrinking it")
+        try:
+            self.run(["btrfs", "check", "--readonly", node])
+        except CommandFailed as failed:
+            raise Refused("linux-check", node) from failed
+        # btrfs only shrinks while mounted; root's own folder, never the
+        # live account's
+        private_folder(BACKUP_DIR)
+        where = private_folder(os.path.join(BACKUP_DIR, "shrink"))
+        self.run(["mount", "-t", "btrfs", "-o", "rw,noatime", node, where])
+        try:
+            self.note(f"shrinking the filesystem on {node} to {shrink['bytes']} bytes")
+            self.run(["btrfs", "filesystem", "resize", "%d:%d" % (shrink.get("devid") or 1, shrink["bytes"]), where])
+            self.run(["sync", "-f", where], tolerate=True)
+        finally:
+            self.run(["umount", where], tolerate=True)
+        if self.run(["findmnt", "--noheadings", "--source", node], tolerate=True).strip():
+            raise Refused("in-use", node)
+        info = btrfs_info(self.run(["btrfs", "inspect-internal", "dump-super", node]))
+        if info is None or info["bytes"] > shrink["bytes"]:
+            raise Refused("table-mismatch", node)
+
     def write_table(self, plan):
         disk = plan["disk"]
         self.note(f"writing the partition table of {disk}")
         common = ["sfdisk", "--lock", "--no-reread", "--no-tell-kernel"]
         if plan["wipe"]:
-            script = "label: gpt\n" + table_script(plan)
+            script = "label: %s\n" % plan.get("label", "gpt") + table_script(plan)
             self.run(common + ["--wipe", "always", "--wipe-partitions", "always", disk], feed=script)
             return
         if plan["shrink"]:

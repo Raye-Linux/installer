@@ -39,7 +39,7 @@ TEXT = {
            "title": "Raye couldn't get the disk ready",
            "untouched": "Nothing on the disk was changed.",
            "no-choice": "No choice was made on the disk page.",
-           "no-efi": "This computer started in its old BIOS mode. Raye needs UEFI: turn it on in the computer's settings and start again.",
+           "no-efi": "Raye couldn't tell how this computer starts (UEFI or BIOS). Restart it from the USB stick and try again.",
            "no-passphrase": "The disk password didn't reach the install. Start Setup again.",
            "live": "This is the disk Raye started from.",
            "in-use": "This disk is in use.",
@@ -50,9 +50,17 @@ TEXT = {
            "old-table": "This disk uses an older layout that can't hold Raye next to another system.",
            "shared-efi": "Another system of the same family starts from this disk, and Raye would replace how it starts.",
            "not-offered": "That partition belongs to another system and can't be used.",
-           "cannot-shrink": "Windows' volume can't be made smaller.",
-           "keep-out-of-range": "The size chosen for Windows no longer fits. Start Setup again.",
+           "cannot-shrink": "That volume can't be made smaller.",
+           "keep-out-of-range": "The size chosen for the other system no longer fits. Start Setup again.",
            "table-mismatch": "The disk doesn't read back the way it was written, so Raye stopped before formatting anything.",
+           "full-table": "This disk's older layout has no room left for two more partitions.",
+           "linux-check": "The other system's volume needs a check. Start it, shut it down normally, then try again.",
+           "linux-hibernated": "The other system on this disk is hibernated. Start it and shut it down normally.",
+           "linux-unknown": "Raye couldn't read the other system's volume well enough to resize it.",
+           "btrfs-multi": "The other system's volume spans several disks, so Raye can't make it smaller.",
+           "xfs": "An XFS volume can't be made smaller.",
+           "encrypted": "The other system's volume is encrypted, so Raye can't make it smaller.",
+           "lvm": "The other system uses LVM volumes, which Raye can't make smaller.",
            "failed": "A disk command failed:"},
     "fr": {"name": "Préparation du disque",
            "title": "Raye n'a pas pu préparer le disque",
@@ -69,9 +77,17 @@ TEXT = {
            "old-table": "Ce disque utilise une ancienne disposition qui ne peut pas accueillir Raye à côté d'un autre système.",
            "shared-efi": "Un autre système de la même famille démarre depuis ce disque, et Raye remplacerait son démarrage.",
            "not-offered": "Cette partition appartient à un autre système et ne peut pas être utilisée.",
-           "cannot-shrink": "Le volume de Windows ne peut pas être réduit.",
-           "keep-out-of-range": "La taille choisie pour Windows ne convient plus. Relancez l'installation.",
+           "cannot-shrink": "Ce volume ne peut pas être réduit.",
+           "keep-out-of-range": "La taille choisie pour l'autre système ne convient plus. Relancez l'installation.",
            "table-mismatch": "Le disque ne se relit pas comme il a été écrit : Raye s'est arrêté avant de formater quoi que ce soit.",
+           "full-table": "L'ancienne disposition de ce disque n'a plus de place pour deux partitions de plus.",
+           "linux-check": "Le volume de l'autre système doit être vérifié. Démarrez-le, éteignez-le normalement, puis réessayez.",
+           "linux-hibernated": "L'autre système de ce disque est en veille prolongée. Démarrez-le et éteignez-le normalement.",
+           "linux-unknown": "Raye n'a pas pu lire assez bien le volume de l'autre système pour le redimensionner.",
+           "btrfs-multi": "Le volume de l'autre système s'étend sur plusieurs disques : Raye ne peut pas le réduire.",
+           "xfs": "Un volume XFS ne peut pas être réduit.",
+           "encrypted": "Le volume de l'autre système est chiffré : Raye ne peut pas le réduire.",
+           "lvm": "L'autre système utilise des volumes LVM, que Raye ne peut pas réduire.",
            "failed": "Une commande de disque a échoué :"},
 }
 # what the windows findings say comes from the page's own strings; here the
@@ -138,9 +154,14 @@ def run_command(argv, feed=None, tolerate=False):
 
 def fill_storage(gs, made, plan_made):
     gs.insert("partitions", made)
-    gs.insert("firmwareType", "efi")
-    gs.insert("efiSystemPartition", "/boot/efi")
-    gs.insert("efiSystemPartitionName", "EFI")
+    firmware = plan_made.get("firmware", "efi")
+    gs.insert("firmwareType", firmware)
+    if firmware == "efi":
+        gs.insert("efiSystemPartition", "/boot/efi")
+        gs.insert("efiSystemPartitionName", "EFI")
+    else:
+        # the bootloader job puts GRUB at the start of this disk
+        gs.insert("bootLoader", {"installPath": plan_made["disk"]})
     gs.insert("armInstall", False)
     gs.insert("reuseHome", False)
     gs.insert("luksFileSystemType", "luks2")

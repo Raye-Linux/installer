@@ -138,7 +138,7 @@ RayeFrame {
         Rectangle {
             Layout.fillWidth: true
             Layout.topMargin: 8
-            visible: page.findings.length > 0
+            visible: S.warnings(page.findings).length > 0
             implicitHeight: before.implicitHeight + 24
             radius: Theme.radiusControl
             color: Qt.alpha(Theme.caution, 0.10)
@@ -155,7 +155,7 @@ RayeFrame {
                     wrapMode: Text.WordWrap
                 }
                 Repeater {
-                    model: page.findings.filter(f => S.diskFindings.indexOf(f) >= 0)
+                    model: S.warnings(page.findings)
                     Text {
                         required property string modelData
                         Layout.fillWidth: true
