@@ -15,12 +15,20 @@ The order is what keeps someone's data:
 
 Before each of those steps the hardware is read again: the plan was made for
 one disk, and a stick pulled out and another put in takes the same /dev name.
+
+Replacing a system and keeping its folders (apply_keep) adds two steps
+between 2 and 3: the table gets a staging partition in the room the shrink
+made, the folders are copied there and read back, and only then does a
+second table write delete the old volume and add Raye's partitions.
 """
+import contextlib
+import json
 import os
 import stat
 import time
 
-from rayedisk_core import Refused, btrfs_info, check_written, ext_info, table_script
+import rayedisk_keep as keep
+from rayedisk_core import Refused, btrfs_info, check_written, ext_info, keep_steps, table_script
 
 # Root's alone (raye-setup-private makes it). /run/raye-setup belongs to the
 # live account: a name opened there could be a link to any file root can write.
@@ -78,6 +86,30 @@ def ntfs_current_size(text):
         if line.startswith("Current volume size:") and len(words) > 3 and words[3].isdigit():
             return int(words[3])
     return None
+
+
+def staged_number(node):
+    digits = ""
+    for char in reversed(node):
+        if not char.isdigit():
+            break
+        digits = char + digits
+    return int(digits or 0)
+
+
+MANIFEST = "raye-files.json"
+
+
+def write_manifest(folder, kept, done):
+    """What the staging partition holds, for whoever finds it later."""
+    users = [{"name": u["name"], "index": i, "folders": [f["kind"] for f in u["folders"]]}
+             for i, u in enumerate(kept["users"])]
+    text = json.dumps({"system": kept.get("name", ""), "users": users,
+                       "files": done["files"], "bytes": done["bytes"]}, ensure_ascii=False)
+    with open(os.path.join(folder, MANIFEST), "w", encoding="utf-8") as f:
+        f.write(text + "\n")
+        f.flush()
+        os.fsync(f.fileno())
 
 
 def read_nodes_exist(nodes):
@@ -271,8 +303,111 @@ class Writer:
                 "mountPoint": mount, "fsName": fs, "fs": fs, "parttype": "", "partattrs": 0,
                 "features": {}, "uuid": self.uuid(node), "claimed": claimed}
 
+    @contextlib.contextmanager
+    def mounted(self, node, fstype, name, read_only=True):
+        """A volume mounted in root's own folder for as long as the block lasts."""
+        private_folder(BACKUP_DIR)
+        where = private_folder(os.path.join(BACKUP_DIR, name))
+        if read_only:
+            self.run(keep.mount_argv(node, fstype, where))
+        else:
+            self.run(["mount", "-t", fstype, "-o", "rw,noatime", node, where])
+        try:
+            yield where
+        finally:
+            self.run(["sync", "-f", where], tolerate=True)
+            self.run(["umount", where], tolerate=True)
+            if self.run(["findmnt", "--noheadings", "--source", node], tolerate=True).strip():
+                raise Refused("in-use", node)
+
+    def stage_files(self, kept, staged):
+        """Copies the folders of the old system to the staging partition.
+
+        Returns what was copied. Refused unless every file read back the same.
+        """
+        windows = kept.get("system") == "windows"
+        total = max(1, kept.get("bytes") or 1)
+        copier = keep.Copier(links="skip" if windows else "copy",
+                             mode_mask=0o644 if windows else 0o7777,
+                             progress=lambda done: self.progress(0.15 + 0.45 * min(1.0, done / total)))
+        expected = {"files": 0, "bytes": 0}
+        missing = []
+        with self.mounted(kept["source"], kept["fstype"], "keep-old") as old, \
+                self.mounted(staged, "ext4", "keep-new", read_only=False) as new:
+            for index, user in enumerate(kept["users"]):
+                for folder in user["folders"]:
+                    source = keep.real_dir(old, os.path.join(kept.get("base") or "", user["home"], folder["path"]))
+                    if source is None:
+                        missing.append(folder["path"])
+                        continue
+                    size = keep.measure(source)
+                    expected["files"] += size["files"]
+                    expected["bytes"] += size["bytes"]
+                    if size["unreadable"]:
+                        missing.append(source)
+                    self.note(f"copying {folder['kind']} of {user['name']}")
+                    copier.copy_tree(source, os.path.join(new, "users", str(index), folder["kind"]))
+            done = copier.report()
+            on_disk = keep.measure(os.path.join(new, "users")) if done["files"] else {"files": 0, "bytes": 0}
+            write_manifest(new, kept, done)
+        self.note(f"copied {done['files']} files ({done['bytes']} bytes), {done['failed']} failed")
+        if missing or done["failed"] or done["files"] != expected["files"] or done["bytes"] != expected["bytes"] \
+                or on_disk["files"] != expected["files"] or on_disk["bytes"] != expected["bytes"]:
+            raise Refused("keep-copy", kept["source"])
+        return done
+
+    def drop_stage(self, plan, staged):
+        """Takes the staging partition away again; it only ever held copies."""
+        number = staged_number(staged)
+        common = ["sfdisk", "--lock", "--no-reread", "--no-tell-kernel"]
+        self.run(common + ["--delete", plan["disk"], str(number)], tolerate=True)
+        self.run(["partx", "--delete", "--nr", str(number), plan["disk"]], tolerate=True)
+
+    def apply_keep(self, plan, before, passphrase):
+        """Replace a system and keep its folders. See rayedisk_keep."""
+        disk = plan["disk"]
+        private_folder(BACKUP_DIR)
+        self.same_disk(plan)
+        self.unmount(plan["unmount"])
+        write_private(backup_name(disk), self.run(["sfdisk", "--dump", disk], tolerate=True))
+        first, second = keep_steps(plan)
+        self.progress(0.05)
+        if plan["shrink"]:
+            self.same_disk(plan)
+            self.shrink_filesystem(plan["shrink"])
+        self.same_disk(plan)
+        self.write_table(first)
+        self.tell_kernel(first)
+        staged = check_written(before, self.read_table(disk), first)["stage"]
+        self.wait_for([staged])
+        self.run(["mkfs.ext4", "-F", "-q", "-m", "0", "-L", "raye_files", staged])
+        self.progress(0.15)
+        try:
+            copied = self.stage_files(plan["keep"], staged)
+        except (Refused, CommandFailed, OSError):
+            self.drop_stage(plan, staged)
+            raise
+        self.progress(0.6)
+        # the old volume goes only now that its folders read back the same
+        middle = self.read_table(disk)
+        self.same_disk(plan)
+        self.write_table(second)
+        self.tell_kernel(second)
+        nodes = check_written(middle, self.read_table(disk), second)
+        self.wait_for(list(nodes.values()))
+        self.progress(0.7)
+        self.same_disk(plan)
+        made = self.format_all(plan, nodes, passphrase)
+        plan["keep"]["stage"] = staged
+        plan["keep"]["copied"] = copied
+        plan["keep"]["root"] = nodes["root"]
+        self.progress(1.0)
+        return made
+
     def apply(self, plan, before, passphrase):
         """Everything, in order. Returns the partition list for GlobalStorage."""
+        if plan.get("stage"):
+            return self.apply_keep(plan, before, passphrase)
         disk = plan["disk"]
         private_folder(BACKUP_DIR)
         self.same_disk(plan)

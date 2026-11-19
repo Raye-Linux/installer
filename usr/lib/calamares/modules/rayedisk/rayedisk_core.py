@@ -19,6 +19,9 @@ The rules that keep someone's data:
  - The disk Raye started from is never offered.
  - A disk that could not be read is never offered either: "could not read
    the table" is not "no table", and only the second may look empty.
+ - "Replace and keep my files" never needs anything deleted before it is
+   copied: the room for two copies of the files is there, or the choice is
+   refused with how much it would take.
 """
 
 MIB = 1024 ** 2
@@ -72,7 +75,13 @@ SHRINK_BLOCKERS = {"bitlocker", "hibernated", "ntfs-dirty", "ntfs-check",
                    "linux-check", "btrfs-multi", "linux-hibernated", "linux-unknown"}
 FIRMWARES = ("efi", "bios")
 
-MODES = ("erase", "shrink", "free", "replace")
+MODES = ("erase", "shrink", "free", "replace", "keep")
+
+# Left in the old volume on top of its minimum while its files are copied
+# out of it: it never starts again, it only has to shrink safely.
+KEEP_MARGIN = 2 * GIB
+# what a separate /home of the other Linux can stay as, mounted by Raye
+HOME_FS = {"ext2", "ext3", "ext4", "xfs", "btrfs"}
 
 
 class Refused(Exception):
@@ -218,6 +227,78 @@ def _shrink_option(disk, part, firmware="efi"):
             "keepDefault": max(keep_min, keep_default)}, None
 
 
+def _up_mib(value):
+    return value + (-value % MIB)
+
+
+def staged_bytes(files, size):
+    """Room the copied folders take on a new ext4: its tables, a block per file."""
+    return _up_mib(size + size // 32 + files * 4096 + GIB)
+
+
+def home_bytes(files, size):
+    """Room the folders take in Raye's own volume."""
+    return _up_mib(size + size // 50 + files * 4096)
+
+
+def _keep_summary(keep):
+    """What the page lists: whose folders, and how big."""
+    return [{"name": u["name"], "folders": [{"kind": f["kind"], "files": f["files"], "bytes": f["bytes"]}
+                                            for f in u["folders"]]}
+            for u in keep["users"]]
+
+
+def _home_partition(disks, node):
+    for disk in disks or []:
+        for part in disk.get("parts", []):
+            if part["node"] == node:
+                return disk, part
+    return None, None
+
+
+def _keep_option(disk, part, firmware="efi", disks=None):
+    """"Replace this system and keep my files": the option, or a refusal."""
+    keep = part.get("keep")
+    if not keep or not keep.get("users"):
+        return None, None
+    files = sum(f["files"] for u in keep["users"] for f in u["folders"])
+    size_files = sum(f["bytes"] for u in keep["users"] for f in u["folders"])
+    unreadable = sum(f.get("unreadable", 0) for u in keep["users"] for f in u["folders"])
+    base = {"mode": "keep", "node": part["node"], "number": part["number"],
+            "name": keep.get("name") or _name(part), "fstype": part.get("fstype") or "",
+            "users": _keep_summary(keep), "files": files, "size": size_files}
+    if unreadable:
+        return None, {"mode": "keep", "node": part["node"], "name": base["name"], "reason": "unreadable"}
+    size = part["sectors"] * disk["sector"]
+    need = need_on(disk, firmware)
+    home = keep.get("home")
+    if home:
+        # the files are on a partition of their own, which stays as it is
+        _, other = _home_partition(disks or [disk], home)
+        if other is None or other.get("mounted") or other.get("findings") \
+                or other.get("fstype") not in HOME_FS or keep.get("base"):
+            return None, None
+        if size < need:
+            return None, None
+        return dict(base, way="home", bytes=size, home=home, homeFs=other["fstype"]), None
+    fstype = part.get("fstype")
+    if fstype not in RESIZABLE or part.get("mounted"):
+        return None, None
+    blockers = [f for f in part.get("findings", []) if f in SHRINK_BLOCKERS]
+    if blockers or (fstype in LINUX_FS and _linux_hibernated(disk)) or not part.get("shrink_minimum"):
+        # the card of "install next to" already says why
+        return None, None
+    behind = disk["sector"] * _room_after(disk, part)
+    total = size + behind
+    old_keep = min(size, _up_mib(part["shrink_minimum"] + KEEP_MARGIN))
+    region = _up_mib(max(old_keep, need + home_bytes(files, size_files)))
+    needed = region + staged_bytes(files, size_files) + 2 * MIB
+    if total < needed:
+        return None, {"mode": "keep", "node": part["node"], "name": base["name"], "reason": "room",
+                      "needed": needed, "have": total}
+    return dict(base, way="stage", bytes=total, shrinkTo=old_keep, region=region), None
+
+
 def _beside_table(disk, firmware):
     """Whether Raye can go next to what is on this disk's table, and the reason when not."""
     if disk["table"] == "gpt":
@@ -227,7 +308,7 @@ def _beside_table(disk, firmware):
     return False, "old-table"
 
 
-def options_for(disk, firmware="efi"):
+def options_for(disk, firmware="efi", disks=None):
     """Everything the page can offer for one disk, with what it refuses."""
     options, refused = [], []
     beside, reason = _beside_table(disk, firmware)
@@ -262,6 +343,17 @@ def options_for(disk, firmware="efi"):
                 size = region["sectors"] * disk["sector"]
                 if size >= need:
                     options.append({"mode": "free", "start": region["start"], "bytes": size})
+        # keeping the files comes before plain replacing: it loses less.
+        # Staging adds a partition before Raye's two are made
+        if not dos or slots >= 2:
+            for part in sorted(disk["parts"], key=lambda p: p["start"]):
+                if part["type"].upper() in HIDDEN_TYPES:
+                    continue
+                option, refusal = _keep_option(disk, part, firmware, disks)
+                if option:
+                    options.append(option)
+                elif refusal:
+                    refused.append(refusal)
         # dos_slots is 0 with an extended partition, so this keeps out of it too
         if not dos or slots + 1 >= 2:
             for part in sorted(disk["parts"], key=lambda p: p["start"]):
@@ -294,7 +386,7 @@ def report(firmware, disks):
             entry["blocked"] = "small"
         else:
             entry["blocked"] = ""
-            entry["options"], entry["refused"] = options_for(disk, firmware)
+            entry["options"], entry["refused"] = options_for(disk, firmware, disks)
         entry["empty"] = not disk.get("unreadable") and not disk["parts"] and not disk.get("signature")
         shown.append(entry)
     return {"firmware": firmware, "disks": shown}
@@ -336,7 +428,7 @@ def _partition(disk, node):
     raise Refused("disk-changed", node)
 
 
-def plan(disk, firmware, answer, encrypt_passphrase_given):
+def plan(disk, firmware, answer, encrypt_passphrase_given, disks=None):
     """Turn the page's answer into the changes to make, or refuse."""
     mode = answer.get("mode")
     if mode not in MODES:
@@ -358,7 +450,8 @@ def plan(disk, firmware, answer, encrypt_passphrase_given):
     # the writer checks the hardware is still this one before every write
     result = {"disk": disk["node"], "hardware": disk.get("hardware") or "",
               "mode": mode, "encrypt": encrypt, "wipe": False, "firmware": firmware, "label": "gpt",
-              "shrink": None, "delete": None, "reuse_esp": None, "add": [], "unmount": []}
+              "shrink": None, "delete": None, "reuse_esp": None, "add": [], "unmount": [],
+              "stage": None, "keep": None}
 
     if mode == "erase":
         if disk["size"] < RAYE_NEEDS + ESP_SIZE + 2 * MIB:
@@ -405,6 +498,9 @@ def plan(disk, firmware, answer, encrypt_passphrase_given):
     if part["type"].upper() in HIDDEN_TYPES:
         raise Refused("not-offered", part["node"])
 
+    if mode == "keep":
+        return _plan_keep(disk, firmware, part, extra, label, result, disks)
+
     if mode == "replace":
         size = part["sectors"] * disk["sector"]
         if size < need_on(disk, firmware):
@@ -443,6 +539,57 @@ def plan(disk, firmware, answer, encrypt_passphrase_given):
     # Windows' boot code refuses one with two
     result["add"] = _layout(disk, start, end - start, extra, label, False)
     return result
+
+
+def _plan_keep(disk, firmware, part, extra, label, result, disks):
+    """Replace a system and keep its folders: see rayedisk_keep."""
+    if disk["table"] == "dos" and dos_slots(disk) < 2:
+        raise Refused("full-table", disk["node"])
+    option, refusal = _keep_option(disk, part, firmware, disks)
+    if refusal:
+        raise Refused("keep-" + refusal["reason"], part["node"])
+    if option is None:
+        raise Refused("cannot-keep", part["node"])
+    keep = part["keep"]
+    align = align_of(disk)
+    start = align_up(part["start"], align)
+    result["delete"] = {"node": part["node"], "number": part["number"]}
+    result["keep"] = {"way": option["way"], "source": part["node"], "fstype": part.get("fstype") or "",
+                      "system": keep.get("system", "linux"), "name": option["name"],
+                      "base": keep.get("base", ""), "home": keep.get("home") or "",
+                      "homeFs": option.get("homeFs", ""), "users": keep["users"],
+                      "files": option["files"], "bytes": option["size"]}
+    if option["way"] == "home":
+        end = align_down(min(part["start"] + part["sectors"], disk_end(disk)), align)
+        result["add"] = _layout(disk, start, end - start, extra, label, False)
+        return result
+    keep_sectors = align_down(option["shrinkTo"] // disk["sector"], align)
+    if keep_sectors < part["sectors"]:
+        result["shrink"] = {"node": part["node"], "number": part["number"], "fstype": part.get("fstype"),
+                            "devid": part.get("btrfs_devid") or 1,
+                            "start": part["start"], "old_sectors": part["sectors"],
+                            "sectors": keep_sectors, "bytes": keep_sectors * disk["sector"]}
+    region = align_up(option["region"] // disk["sector"], align)
+    stage_start = start + region
+    end = align_down(min(part["start"] + part["sectors"] + _room_after(disk, part), disk_end(disk)), align)
+    if (end - stage_start) * disk["sector"] < staged_bytes(option["files"], option["size"]):
+        raise Refused("keep-room", part["node"])
+    stage_type = DOS_LINUX if label == "dos" else LINUX_TYPE
+    result["stage"] = {"role": "stage", "start": stage_start, "sectors": end - stage_start,
+                       "type": stage_type, "name": "raye_files", "bootable": False}
+    result["add"] = _layout(disk, start, region, extra, label, False)
+    return result
+
+
+def keep_steps(result):
+    """The two table changes of a staged keep, as plans check_written reads.
+
+    First the old volume shrinks and the staging partition is added; then the
+    old volume goes and Raye's partitions are added in front of the copies.
+    """
+    first = dict(result, delete=None, add=[result["stage"]])
+    second = dict(result, shrink=None, add=result["add"])
+    return first, second
 
 
 def table_script(result, sector_size=None):

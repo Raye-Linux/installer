@@ -42,6 +42,7 @@ function title(option, disk, lang) {
     case "shrink": return S.t(lang, "diskShrinkTitle", [systemName(option, lang)])
     case "free": return S.t(lang, "diskFreeTitle")
     case "replace": return S.t(lang, "diskReplaceTitle", [systemName(option, lang)])
+    case "keep": return S.t(lang, "diskKeepTitle", [systemName(option, lang)])
     case "erase": return S.t(lang, disk.empty ? "diskEmptyTitle" : "diskEraseTitle")
     }
     return ""
@@ -52,17 +53,50 @@ function line(option, disk, lang) {
     case "shrink": return S.t(lang, "diskShrinkLine", [systemName(option, lang)])
     case "free": return S.t(lang, "diskFreeLine", [size(option.bytes, lang)])
     case "replace": return S.t(lang, "diskReplaceLine", [systemName(option, lang), size(option.bytes, lang)])
+    case "keep": return S.t(lang, "diskKeepLine", [systemName(option, lang), size(option.size, lang)])
     case "erase": return S.t(lang, disk.empty ? "diskEmptyLine" : "diskEraseLine")
     }
     return ""
 }
 
-// a choice that deletes something says so in red
+// a choice that deletes something says so in red. Keeping the files is not
+// red: its box still asks, with the folders it keeps listed.
 function deletes(option, disk) {
     return option.mode === "replace" || (option.mode === "erase" && !disk.empty)
 }
 
+// "1,204" in English, "1 204" in French, as Windows writes a count
+function count(number, lang) {
+    var text = String(Math.round(Number(number)))
+    var group = lang === "fr" ? "\u202f" : ","
+    return text.replace(/\B(?=(\d{3})+(?!\d))/g, group)
+}
+
+// What "Replace and keep my files" keeps, one row per folder:
+// [{ label: "Documents", detail: "3.2 GB · 1,204 files" }]. With several
+// accounts each row says whose it is.
+function kept(option, lang) {
+    var rows = []
+    var users = option.users || []
+    for (var i = 0; i < users.length; ++i) {
+        var folders = users[i].folders || []
+        for (var j = 0; j < folders.length; ++j) {
+            var kind = String(folders[j].kind)
+            var name = S.t(lang, "folder" + kind.charAt(0).toUpperCase() + kind.slice(1))
+            rows.push({ label: users.length > 1 ? S.t(lang, "confirmKeepFolder", [name, users[i].name]) : name,
+                        detail: S.t(lang, "confirmKeepFiles", [size(folders[j].bytes, lang),
+                                                              count(folders[j].files, lang)]) })
+        }
+    }
+    return rows
+}
+
 function refusedText(refusal, lang) {
+    if (refusal.mode === "keep" && refusal.reason === "room")
+        return S.t(lang, "diskKeepRoom", [refusal.name || S.t(lang, "diskThisPartition"),
+                                          size(refusal.needed, lang), size(refusal.have, lang)])
+    if (refusal.mode === "keep")
+        return S.t(lang, "diskKeepUnreadable", [refusal.name || S.t(lang, "diskThisPartition")])
     if (refusal.reason === "old-table")
         return S.t(lang, "diskOldTable")
     if (refusal.reason === "full-table")
@@ -80,6 +114,7 @@ function shrinkNote(option, lang) {
 
 // The question asked before a card that deletes or resizes something is
 // picked, as Windows asks before it deletes a partition. null: nothing to ask.
+// Keeping files adds the list of what is kept (kept) and a line under it.
 function confirm(option, disk, lang) {
     if (!option)
         return null
@@ -91,6 +126,13 @@ function confirm(option, disk, lang) {
         return { title: S.t(lang, "confirmReplaceTitle", [systemName(option, lang)]),
                  text: S.t(lang, "confirmReplaceText", [systemName(option, lang), size(option.bytes, lang)]),
                  button: S.t(lang, "confirmReplace"), danger: true }
+    if (option.mode === "keep")
+        return { title: S.t(lang, "confirmKeepTitle", [systemName(option, lang)]),
+                 text: S.t(lang, option.way === "home" ? "confirmKeepHome" : "confirmKeepStage",
+                           [systemName(option, lang)]),
+                 kept: kept(option, lang),
+                 note: option.way === "home" ? "" : S.t(lang, "confirmKeepSafe", [systemName(option, lang)]),
+                 button: S.t(lang, "confirmKeep"), danger: true }
     if (option.mode === "shrink")
         return { title: S.t(lang, "confirmShrinkTitle", [systemName(option, lang)]),
                  text: S.t(lang, "confirmShrinkText", [systemName(option, lang)]),
@@ -106,6 +148,18 @@ function blockedText(blocked, lang) {
     case "unreadable": return S.t(lang, "diskBlockedUnreadable")
     }
     return ""
+}
+
+// What the last page says about the files Raye kept, from keep-result
+// (written by the rayekeep job). "" when nothing was kept.
+function keepResult(text, lang) {
+    var result = null
+    try { result = text ? JSON.parse(text) : null } catch (e) { result = null }
+    if (!result)
+        return ""
+    if (result.ok)
+        return S.t(lang, "keepDone", [result.name || S.t(lang, "diskThisPartition")])
+    return S.t(lang, result.way === "home" ? "keepNotMoved" : "keepLeft")
 }
 
 // The disk as it is, and as it will be: parts of a bar, in order.
@@ -153,8 +207,8 @@ function bars(disk, option, keep, lang) {
         var here = layout[k]
         if (here.free) {
             // the gap behind a shrunk volume goes to Raye with it
-            var behindShrunk = option.mode === "shrink" && k > 0 && layout[k - 1].part
-                && layout[k - 1].part.node === option.node
+            var behindShrunk = (option.mode === "shrink" || (option.mode === "keep" && option.way === "stage"))
+                && k > 0 && layout[k - 1].part && layout[k - 1].part.node === option.node
             if (behindShrunk)
                 continue
             if (option.mode === "free" && Number(option.start) >= here.start
@@ -169,6 +223,8 @@ function bars(disk, option, keep, lang) {
         } else if (option.mode === "shrink") {
             push(after, "system", keep, here.part.os || here.part.label || "")
             push(after, "raye", option.total - keep, "Raye")
+        } else if (option.mode === "keep" && option.way === "stage") {
+            push(after, "raye", option.bytes, "Raye")
         } else {
             push(after, "raye", here.bytes, "Raye")
         }
@@ -206,6 +262,8 @@ function details(disk, option, keep, encrypt, lang) {
         lines.push(S.t(lang, "diskDetailRaye", [size(option.total - keep, lang)]))
     } else if (option.mode === "replace") {
         lines.push(S.t(lang, "diskDetailReplace", [systemName(option, lang), size(option.bytes, lang)]))
+    } else if (option.mode === "keep") {
+        lines.push(S.t(lang, "diskDetailKeep", [systemName(option, lang), size(option.size, lang)]))
     } else {
         lines.push(S.t(lang, "diskDetailRaye", [size(option.bytes, lang)]))
     }
@@ -218,13 +276,13 @@ function details(disk, option, keep, encrypt, lang) {
 function answer(disk, option, keep, encrypt, lang) {
     var result = { mode: option.mode, disk: disk.node, id: disk.id, encrypt: !!encrypt,
                    install: option.mode === "erase" ? "erase"
-                          : option.mode === "replace" ? "replace" : "alongside",
+                          : option.mode === "replace" || option.mode === "keep" ? "replace" : "alongside",
                    diskLabel: diskLabel(disk),
                    details: details(disk, option, keep, encrypt, lang) }
     if (option.mode === "shrink") {
         result.partition = option.node
         result.keep = keep
-    } else if (option.mode === "replace") {
+    } else if (option.mode === "replace" || option.mode === "keep") {
         result.partition = option.node
     } else if (option.mode === "free") {
         result.start = option.start

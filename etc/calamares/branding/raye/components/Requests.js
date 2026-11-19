@@ -74,6 +74,17 @@ function read(name, done) {
     request.send()
 }
 
+// The same from root's own folder: what a job left for the last page.
+function readPrivate(name, done) {
+    var request = new XMLHttpRequest()
+    request.onreadystatechange = function() {
+        if (request.readyState === XMLHttpRequest.DONE)
+            done(request.status === 200 || request.status === 0 ? String(request.responseText || "") : "")
+    }
+    request.open("GET", privateFolder + name)
+    request.send()
+}
+
 function answerOf(key, done) {
     read("answer-" + key, done)
 }

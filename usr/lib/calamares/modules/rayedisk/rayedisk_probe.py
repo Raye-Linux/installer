@@ -4,14 +4,25 @@
 Used twice: by raye-disks for the page, and by the job right before it
 writes, so the plan is made against the disk as it is now.
 """
+import contextlib
 import hashlib
 import json
 import os
 import re
 import subprocess
 
-from rayedisk_core import (ESP_TYPE, LINUX_FS, btrfs_info, bytes_of_ntfsresize, ext_info,
-                           ext_minimum)
+import rayedisk_keep as keep
+from rayedisk_core import (ESP_TYPE, HIDDEN_TYPES, LINUX_FS, Refused, btrfs_info, bytes_of_ntfsresize,
+                           ext_info, ext_minimum)
+
+# Root's own folder (see rayedisk_apply): where another system's volumes
+# are looked at, read only, for the files Raye can keep.
+LOOK_DIR = "/run/raye-setup-root/look"
+
+
+def look_dir():
+    # the tests point it at a folder of their own
+    return os.environ.get("RAYE_LOOK_DIR") or LOOK_DIR
 
 LIVE_MOUNTS = {"/cdrom", "/run/live/medium", "/isodevice"}
 # lsblk calls these "disk" too; zram is the live session's own memory
@@ -215,6 +226,7 @@ def read_disk(blk, findings, names, run=run_text, look=True):
                 "start": int(entry["start"]), "sectors": int(entry["size"]),
                 "type": str(entry.get("type", "")), "name": entry.get("name") or "",
                 "fstype": info.get("fstype") or "", "label": info.get("label") or "",
+                "uuid": info.get("uuid") or "", "partuuid": info.get("partuuid") or "",
                 "mounted": bool(mounts), "findings": found}
         if look:
             if part["fstype"] == "ntfs" and not part["findings"]:
@@ -248,16 +260,98 @@ def read_disk(blk, findings, names, run=run_text, look=True):
             "id": fingerprint(node, size, blk.get("fstype"), run, hardware, blk.get("uuid") or "")}
 
 
+@contextlib.contextmanager
+def mounted_read_only(part, run=run_text):
+    """Where a volume is, mounted read only for as long as the block lasts.
+
+    None when it would not mount. A volume that would not let go afterwards
+    is marked mounted, so nothing on it is offered.
+    """
+    from rayedisk_apply import private_folder
+    try:
+        folder = look_dir()
+        private_folder(os.path.dirname(folder))
+        private_folder(folder)
+        where = private_folder(os.path.join(folder, os.path.basename(part["node"])))
+    except Refused:
+        yield None
+        return
+    code, _ = run(keep.mount_argv(part["node"], part["fstype"], where))
+    if code != 0:
+        yield None
+        return
+    try:
+        yield where
+    finally:
+        code, _ = run(["umount", where])
+        if code != 0:
+            part["mounted"] = True
+
+
+def look_for_files(part, everything, opener):
+    """The folders Raye can keep from one volume, None for nothing to keep."""
+    fstype = part["fstype"]
+    if fstype == "ntfs":
+        with opener(part) as top:
+            users_dir = keep.real_dir(top, "Users") if top else None
+            if users_dir is None:
+                return None
+            return {"system": "windows", "name": part.get("os") or "Windows",
+                    "base": "Users", "users": keep.windows_users(users_dir)}
+    with opener(part) as top:
+        info = keep.look_linux(top, fstype, part.get("uuid")) if top else None
+        if info is None:
+            return None
+        root = os.path.join(top, info["root"])
+        home = info["home"]
+        if home["on"] == "self":
+            base = keep.real_dir(top, home["path"]) if home["path"] else top
+            users = keep.linux_users(root, base) if base else []
+            return {"system": "linux", "name": info["name"], "base": home["path"], "users": users}
+        other = keep.resolve_spec(home["spec"], everything)
+        if other is None or other is part or other.get("mounted") or other.get("findings"):
+            return None
+        sub = keep.subvolume_of(home["options"]) if other["fstype"] == "btrfs" else ""
+        with opener(other) as htop:
+            base = (keep.real_dir(htop, sub) if sub else htop) if htop else None
+            users = keep.linux_users(root, base) if base else []
+        return {"system": "linux", "name": info["name"], "base": sub, "home": other["node"],
+                "users": users}
+
+
+def find_files_to_keep(disks, run=run_text, only=None, opener=None):
+    """Adds "keep" to each volume of another system whose folders Raye can keep."""
+    opener = opener or (lambda part: mounted_read_only(part, run))
+    everything = [p for d in disks for p in d["parts"]]
+    for disk in disks:
+        if disk.get("live") or disk.get("unreadable") or disk.get("holders"):
+            continue
+        for part in disk["parts"]:
+            if only and part["node"] != only:
+                continue
+            if part["mounted"] or part["findings"] or part["type"].upper() in HIDDEN_TYPES:
+                continue
+            if part["fstype"] not in LINUX_FS | {"xfs", "ntfs"}:
+                continue
+            if part["fstype"] == "ntfs" and part.get("os") != "Windows" and not is_windows(part["node"], run):
+                continue
+            found = look_for_files(part, everything, opener)
+            if found and found["users"]:
+                part["keep"] = found
+
+
 def read_machine(run=run_text, look=True):
-    """(firmware, [disks]). look=False skips the slow os-prober."""
+    """(firmware, [disks]). look=False skips os-prober and the look for files to keep."""
     # --tree: with an --output list and no NAME, lsblk's JSON comes out flat
     code, text = run(["lsblk", "--json", "--tree=PATH", "--bytes", "--paths", "--output",
-                      "PATH,TYPE,SIZE,MODEL,RM,TRAN,FSTYPE,LABEL,UUID,MOUNTPOINTS,LOG-SEC"])
+                      "PATH,TYPE,SIZE,MODEL,RM,TRAN,FSTYPE,LABEL,UUID,PARTUUID,MOUNTPOINTS,LOG-SEC"])
     tree = json.loads(text).get("blockdevices", []) if code == 0 and text.strip() else []
     findings = preflight_findings(run)
     names = os_names(run) if look else {}
     disks = [read_disk(blk, findings, names, run, look) for blk in tree
              if blk.get("type") == "disk" and int(blk.get("size") or 0) > 0
              and not blk["path"].startswith(NOT_DISKS)]
+    if look:
+        find_files_to_keep(disks, run)
     firmware = "efi" if os.path.isdir("/sys/firmware/efi") else "bios"
     return firmware, disks

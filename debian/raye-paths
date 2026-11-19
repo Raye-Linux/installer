@@ -31,10 +31,12 @@ calamares-settings-raye  usr/libexec/fixconkeys-part2
 calamares-settings-raye  usr/libexec/raye-setup-session
 calamares-settings-raye  usr/libexec/raye-setup-run
 calamares-settings-raye  usr/libexec/raye-setup-private
+calamares-settings-raye  usr/libexec/raye-try-session
 calamares-settings-raye  ?usr/libexec/raye-calamares
 calamares-settings-raye  ?usr/libexec/raye-restart
 calamares-settings-raye  usr/lib/calamares/modules/rayeencryption
 calamares-settings-raye  usr/lib/calamares/modules/rayedisk
+calamares-settings-raye  usr/lib/calamares/modules/rayekeep
 calamares-settings-raye  usr/lib/calamares/modules/bootloader
 calamares-settings-raye  usr/lib/calamares/modules/rayesetupchoices
 calamares-settings-raye  ?usr/lib/calamares/modules/rayelanguage
@@ -44,6 +46,10 @@ calamares-settings-raye  usr/share/applications/raye-install.desktop
 # Replaces the one from calamares-data (diverted in preinst).
 calamares-settings-raye  ?usr/share/applications/calamares.desktop
 calamares-settings-raye  usr/share/wayland-sessions/raye-setup.desktop
+calamares-settings-raye  usr/share/wayland-sessions/raye-try.desktop
+# Trying Raye: the PC's disks open read-only, and no updates into memory.
+calamares-settings-raye  usr/lib/udev/rules.d/90-raye-try.rules
+calamares-settings-raye  usr/lib/systemd/system/raye-update.service.d/raye-live.conf
 calamares-settings-raye  usr/share/initramfs-tools/scripts/casper-bottom/16raye_setup
 calamares-settings-raye  usr/share/raye/setup
 

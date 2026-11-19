@@ -5,7 +5,8 @@
 //
 // Nothing is picked for the person unless the disk is empty: a card that
 // deletes something is only ever chosen by hand, and only once the box that
-// asks "Delete Arch Linux?" (or erase, or make smaller) says yes. Next waits for a choice
+// asks "Delete Arch Linux?" (or erase, or make smaller, or replace and keep
+// the files, with the folders it keeps listed) says yes. Next waits for a choice
 // (calamares-navigation.qml reads disk-ready, there is no other way between
 // two QML engines).
 
@@ -420,7 +421,7 @@ RayeFrame {
         Rectangle {
             id: confirmCard
             anchors.centerIn: parent
-            width: Math.min(480, parent.width - 48)
+            width: Math.min(page.question && page.question.kept ? 540 : 480, parent.width - 48)
             height: box.implicitHeight + 48
             radius: Theme.radiusCard
             color: Theme.backgroundBottom
@@ -450,6 +451,49 @@ RayeFrame {
                     text: page.question ? page.question.text : ""
                     font: Theme.body
                     color: Theme.textSecondary
+                    wrapMode: Text.WordWrap
+                }
+                // what "Replace and keep my files" keeps, folder by folder
+                Rectangle {
+                    Layout.fillWidth: true
+                    visible: page.question !== null && (page.question.kept || []).length > 0
+                    implicitHeight: keptRows.implicitHeight + 16
+                    radius: Theme.radiusControl
+                    color: Qt.alpha(Theme.accent, 0.08)
+                    border.color: Qt.alpha(Theme.accent, 0.30)
+                    ColumnLayout {
+                        id: keptRows
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+                        spacing: 4
+                        Repeater {
+                            model: page.question ? (page.question.kept || []) : []
+                            RowLayout {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                spacing: 12
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: modelData.label
+                                    font: Theme.bodyStrong
+                                    color: Theme.textPrimary
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    text: modelData.detail
+                                    font: Theme.caption
+                                    color: Theme.textSecondary
+                                }
+                            }
+                        }
+                    }
+                }
+                Text {
+                    objectName: "confirmNote"
+                    Layout.fillWidth: true
+                    visible: text !== ""
+                    text: page.question ? (page.question.note || "") : ""
+                    font: Theme.caption
+                    color: Theme.textTertiary
                     wrapMode: Text.WordWrap
                 }
                 RowLayout {

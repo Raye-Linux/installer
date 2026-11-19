@@ -103,8 +103,10 @@ INTERFACE_DIRS = ("etc/calamares/branding/raye", "qml/org/raye/setup",
                   "app/setup", "app/firstrun")
 # The Python job modules that carry their own en/fr tables.
 JOB_MODULES = ("usr/lib/calamares/modules/rayeencryption/main.py",
+               "usr/lib/calamares/modules/rayekeep/main.py",
                "usr/lib/calamares/modules/rayesetupchoices/main.py")
 DESKTOP_FILES = ("usr/share/wayland-sessions/raye-setup.desktop",
+                 "usr/share/wayland-sessions/raye-try.desktop",
                  "usr/share/applications/raye-install.desktop")
 # .desktop keys a person reads, so each needs a [fr].
 DESKTOP_KEYS = ("Name", "Comment", "GenericName")

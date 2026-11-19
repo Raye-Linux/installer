@@ -1,7 +1,8 @@
 // One page of Raye Setup in a window, against the fakes tst_pages.qml uses:
 //   tests/ui/run-page-preview.sh <Page.qml> <step> <scenario> [LANG]
 // Scenarios: cable, wifi, offline, encrypted, plain; for Disk.qml linux,
-// linux-ask (the "Delete ...?" box), linux-shrink and bios.
+// linux-ask (the "Delete ...?" box), linux-shrink, bios, keep, keep-ask,
+// keep-home, keep-room and keep-picked; for Done.qml keep-done and keep-left.
 import QtQuick
 import QtQuick.Window
 import io.calamares.core 1.0
@@ -57,6 +58,10 @@ Window {
                 item.keyboard = "English (US)"
             if ("report" in item)
                 win.showDisks(item)
+            if ("keepText" in item && win.scenario === "keep-done")
+                item.keepText = '{"way":"stage","name":"Linux Mint 22","ok":true}'
+            if ("keepText" in item && win.scenario === "keep-left")
+                item.keepText = '{"way":"stage","name":"Linux Mint 22","ok":false,"left":true}'
             if ("diskLabel" in item) {
                 item.install = "erase"
                 item.diskLabel = "QEMU HARDDISK (/dev/sda)"
@@ -89,7 +94,44 @@ Window {
                                 { mode: "replace", node: "/dev/sda2", name: "Windows", fstype: "ntfs", bytes: 499 * gib },
                                 { mode: "erase" }],
                       refused: [] }
-        page.report = { firmware: scenario === "bios" ? "bios" : "efi", disks: [scenario === "bios" ? old : linux] }
+        const mintUsers = [{ name: "alice", folders: [
+                               { kind: "desktop", files: 12, bytes: 0.2 * gib },
+                               { kind: "documents", files: 1204, bytes: 3.2 * gib },
+                               { kind: "downloads", files: 87, bytes: 6.4 * gib },
+                               { kind: "music", files: 2310, bytes: 14.9 * gib },
+                               { kind: "pictures", files: 8402, bytes: 41.6 * gib },
+                               { kind: "videos", files: 64, bytes: 22.5 * gib }] }]
+        const mint = { node: "/dev/nvme0n1", model: "Samsung SSD 980", size: 500 * gib, sector: 512, first: 2048,
+                       last: 500 * gib / 512 - 34, id: "c", empty: false, blocked: "",
+                       parts: [{ node: "/dev/nvme0n1p1", start: 2048, sectors: gib / 512, fstype: "vfat" },
+                               { node: "/dev/nvme0n1p2", start: 2048 + gib / 512, sectors: 499 * gib / 512, fstype: "ext4", os: "Linux Mint 22" }],
+                       options: [{ mode: "shrink", node: "/dev/nvme0n1p2", name: "Linux Mint 22", fstype: "ext4",
+                                   total: 499 * gib, keepMin: 120 * gib, keepMax: 470 * gib, keepDefault: 250 * gib },
+                                 { mode: "keep", way: "stage", node: "/dev/nvme0n1p2", name: "Linux Mint 22", fstype: "ext4",
+                                   bytes: 499 * gib, users: mintUsers, files: 12079, size: 88.8 * gib },
+                                 { mode: "replace", node: "/dev/nvme0n1p2", name: "Linux Mint 22", fstype: "ext4", bytes: 499 * gib },
+                                 { mode: "erase" }],
+                       refused: [] }
+        const homeUsers = [mintUsers[0], { name: "sam", folders: [{ kind: "documents", files: 310, bytes: 1.1 * gib },
+                                                                  { kind: "pictures", files: 920, bytes: 7.3 * gib }] }]
+        const split = { node: "/dev/sda", model: "Crucial MX500", size: 1000 * gib, sector: 512, first: 2048,
+                        last: 1000 * gib / 512 - 34, id: "d", empty: false, blocked: "",
+                        parts: [{ node: "/dev/sda1", start: 2048, sectors: gib / 512, fstype: "vfat" },
+                                { node: "/dev/sda2", start: 2048 + gib / 512, sectors: 80 * gib / 512, fstype: "btrfs", os: "Arch Linux" },
+                                { node: "/dev/sda3", start: 2048 + 81 * gib / 512, sectors: 919 * gib / 512, fstype: "ext4", label: "home" }],
+                        options: [{ mode: "keep", way: "home", node: "/dev/sda2", name: "Arch Linux", fstype: "btrfs", bytes: 80 * gib,
+                                    home: "/dev/sda3", homeFs: "ext4", users: homeUsers, files: 13309, size: 97.2 * gib },
+                                  { mode: "replace", node: "/dev/sda2", name: "Arch Linux", fstype: "btrfs", bytes: 80 * gib },
+                                  { mode: "erase" }],
+                        refused: [] }
+        const full = Object.assign({}, mint, { id: "e", size: 256 * gib, last: 256 * gib / 512 - 34,
+                        options: [mint.options[0], mint.options[2], { mode: "erase" }],
+                        refused: [{ mode: "keep", node: "/dev/nvme0n1p2", name: "Linux Mint 22", reason: "room",
+                                    needed: 212.4 * gib, have: 255 * gib - 50 * gib }] })
+        let shown = scenario === "bios" ? old : linux
+        if (scenario.indexOf("keep") === 0)
+            shown = scenario === "keep-home" ? split : scenario === "keep-room" ? full : mint
+        page.report = { firmware: scenario === "bios" ? "bios" : "efi", disks: [shown] }
         page.scanning = false
         page.choose(0)
         if (scenario === "linux-ask")
@@ -97,6 +139,12 @@ Window {
         if (scenario === "linux-shrink") {
             page.pick(0)
         }
+        if (scenario === "keep-ask")
+            page.ask(1)
+        if (scenario === "keep-home")
+            page.ask(0)
+        if (scenario === "keep-picked")
+            page.pick(1)
     }
 
     Component.onCompleted: {

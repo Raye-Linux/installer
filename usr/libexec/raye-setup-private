@@ -29,7 +29,7 @@ case $what in
         chown 0:0 -- "$dir"
         chmod 0700 -- "$dir"
         # nothing of an earlier run counts
-        rm -f -- "$secret" "$dir/answer-disk"
+        rm -f -- "$secret" "$dir/answer-disk" "$dir/keep-result"
         ( umask 077 && : > "$secret" )
         ;;
     clear)

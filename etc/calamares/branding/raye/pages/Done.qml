@@ -13,6 +13,8 @@ import org.raye.setup
 
 import "../strings.js" as S
 import "../components"
+import "../components/Requests.js" as Requests
+import "../components/DiskLogic.js" as Logic
 
 RayeFrame {
     id: page
@@ -23,10 +25,13 @@ RayeFrame {
 
     readonly property int countdownSeconds: 15
     property int secondsLeft: countdownSeconds
+    // what happened to the files kept from the system Raye replaced
+    property string keepText: ""
 
     onShown: (backward) => {
         secondsLeft = countdownSeconds
         countdown.running = !config.failed
+        Requests.readPrivate("keep-result", text => { if (text) page.keepText = text })
     }
     function restart() {
         countdown.running = false
@@ -61,6 +66,16 @@ RayeFrame {
                 font: Theme.bodyLarge
                 color: Theme.textPrimary
             }
+        }
+
+        Text {
+            objectName: "keepLine"
+            Layout.fillWidth: true
+            visible: !config.failed && text !== ""
+            text: Logic.keepResult(page.keepText, page.lang)
+            font: Theme.body
+            color: Theme.textSecondary
+            wrapMode: Text.WordWrap
         }
 
         Text {

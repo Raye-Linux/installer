@@ -25,7 +25,8 @@ sys.dont_write_bytecode = True
 
 from rayedisk_apply import CommandFailed, Writer
 from rayedisk_core import Refused, plan
-from rayedisk_probe import hardware_of, read_machine, table_of
+from rayedisk_finish import keep_storage
+from rayedisk_probe import find_files_to_keep, hardware_of, read_machine, table_of
 
 ANSWERS = "/run/raye-setup"
 ANSWER = os.path.join(ANSWERS, "answer-disk")
@@ -61,6 +62,10 @@ TEXT = {
            "xfs": "An XFS volume can't be made smaller.",
            "encrypted": "The other system's volume is encrypted, so Raye can't make it smaller.",
            "lvm": "The other system uses LVM volumes, which Raye can't make smaller.",
+           "cannot-keep": "Raye can no longer find the files it was going to keep. Start Setup again.",
+           "keep-room": "There's no longer enough room on this disk to keep your files.",
+           "keep-unreadable": "Some of the files Raye was going to keep can't be read.",
+           "keep-copy": "Raye couldn't copy all of your files, so it stopped before deleting anything. The other system is still there, only smaller.",
            "failed": "A disk command failed:"},
     "fr": {"name": "Préparation du disque",
            "title": "Raye n'a pas pu préparer le disque",
@@ -88,6 +93,10 @@ TEXT = {
            "xfs": "Un volume XFS ne peut pas être réduit.",
            "encrypted": "Le volume de l'autre système est chiffré : Raye ne peut pas le réduire.",
            "lvm": "L'autre système utilise des volumes LVM, que Raye ne peut pas réduire.",
+           "cannot-keep": "Raye ne retrouve plus les fichiers qu'il devait garder. Relancez l'installation.",
+           "keep-room": "Il n'y a plus assez de place sur ce disque pour garder vos fichiers.",
+           "keep-unreadable": "Certains des fichiers que Raye devait garder ne peuvent pas être lus.",
+           "keep-copy": "Raye n'a pas pu copier tous vos fichiers : il s'est arrêté avant de supprimer quoi que ce soit. L'autre système est toujours là, seulement plus petit.",
            "failed": "Une commande de disque a échoué :"},
 }
 # what the windows findings say comes from the page's own strings; here the
@@ -167,8 +176,11 @@ def fill_storage(gs, made, plan_made):
     gs.insert("luksFileSystemType", "luks2")
     # the fstab step makes the swap file from this
     install = {"erase": "erase", "shrink": "alongside", "free": "alongside",
-               "replace": "replace"}[plan_made["mode"]]
+               "replace": "replace", "keep": "replace"}[plan_made["mode"]]
     gs.insert("partitionChoices", {"install": install, "swap": "file"})
+    kept = keep_storage(plan_made, made)
+    if kept:
+        gs.insert("rayeKeep", kept)
 
 
 def run():
@@ -182,7 +194,10 @@ def run():
         disk = next((d for d in disks if d["node"] == answer.get("disk")), None)
         if disk is None:
             raise Refused("disk-changed" if answer else "no-choice")
-        made_plan = plan(disk, firmware, answer, bool(passphrase))
+        if answer.get("mode") == "keep":
+            # read the chosen volume again, mounted read only, right before the plan
+            find_files_to_keep(disks, only=answer.get("partition"))
+        made_plan = plan(disk, firmware, answer, bool(passphrase), disks)
     except Refused as no:
         libcalamares.utils.warning(f"rayedisk: refused: {no}")
         return (words["title"], words.get(no.code, no.code) + " " + words["untouched"])
@@ -201,6 +216,10 @@ def run():
                     identify=hardware_of)
     try:
         made = writer.apply(made_plan, disk, passphrase)
+        kept = made_plan.get("keep")
+        if kept and kept["way"] == "home":
+            # the other system's /home, as it is: Raye mounts it, never formats it
+            made.append(writer._entry(kept["home"], "/home", kept["homeFs"], "", False))
     except Refused as no:
         libcalamares.utils.warning(f"rayedisk: refused: {no}")
         return (words["title"], words.get(no.code, no.code))

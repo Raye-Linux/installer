@@ -301,6 +301,87 @@ TestCase {
             verify(Logic.shrinkNote(disk.options[0], lang) !== Logic.shrinkNote({ fstype: "ntfs" }, lang))
         }
     }
+    function mintDisk() {
+        const disk = blank()
+        disk.empty = false
+        disk.size = 500 * gib
+        disk.last = 500 * gib / 512 - 34
+        disk.parts = [{ node: "/dev/sda1", start: 2048, sectors: gib / 512, fstype: "vfat" },
+                      { node: "/dev/sda2", start: 2048 + gib / 512, sectors: 400 * gib / 512, fstype: "ext4", os: "Linux Mint 22" }]
+        const users = [{ name: "alice", folders: [{ kind: "documents", files: 1204, bytes: 3.2 * gib },
+                                                  { kind: "pictures", files: 40, bytes: 0.5 * gib }] }]
+        disk.options = [{ mode: "replace", node: "/dev/sda2", name: "Linux Mint 22", fstype: "ext4", bytes: 400 * gib },
+                        { mode: "keep", way: "stage", node: "/dev/sda2", name: "Linux Mint 22", fstype: "ext4",
+                          bytes: 499 * gib, users: users, files: 1244, size: 3.7 * gib },
+                        { mode: "erase" }]
+        disk.refused = []
+        return disk
+    }
+    function test_keeping_files_asks_and_lists_every_folder() {
+        const made = page([mintDisk()])
+        made.ask(1)
+        compare(made.option, null)
+        verify(made.question.title.indexOf("Linux Mint 22") >= 0, made.question.title)
+        compare(made.question.kept.length, 2)
+        compare(made.question.kept[0].label, "Documents")
+        compare(made.question.kept[0].detail, "3.2 GB · 1,204 files")
+        verify(made.question.note.indexOf("isn't deleted") > 0, made.question.note)
+        made.answerQuestion(true)
+        compare(made.option.mode, "keep")
+        verify(made.complete)
+        const sent = Logic.answer(made.disk, made.option, 0, false, "en")
+        compare(sent.mode, "keep")
+        compare(sent.partition, "/dev/sda2")
+        compare(sent.install, "replace")
+        verify(sent.details.indexOf("3.7 GB") > 0, sent.details)
+    }
+    function test_keeping_reads_well_in_french() {
+        const option = mintDisk().options[1]
+        const q = Logic.confirm(option, mintDisk(), "fr")
+        compare(q.kept[1].label, "Images")
+        compare(q.kept[0].detail, "3,2 Go · 1\u202f204 fichiers")
+        for (const part of [q.title, q.text, q.note, q.button, Logic.title(option, mintDisk(), "fr"),
+                            Logic.line(option, mintDisk(), "fr")])
+            verify(part.length > 0 && part.indexOf("%") < 0, part)
+    }
+    function test_several_accounts_say_whose_folder() {
+        const option = mintDisk().options[1]
+        option.users.push({ name: "sam", folders: [{ kind: "music", files: 3, bytes: gib }] })
+        const rows = Logic.kept(option, "en")
+        compare(rows[0].label, "Documents (alice)")
+        compare(rows[2].label, "Music (sam)")
+    }
+    function test_keeping_from_a_separate_home_says_it_stays() {
+        const option = Object.assign({}, mintDisk().options[1], { way: "home", home: "/dev/sda3" })
+        const q = Logic.confirm(option, mintDisk(), "en")
+        verify(q.text.indexOf("stays as it is") > 0, q.text)
+        compare(q.note, "")
+    }
+    function test_no_room_to_keep_says_how_much_it_takes() {
+        const text = Logic.refusedText({ mode: "keep", reason: "room", name: "Linux Mint 22",
+                                         needed: 212 * gib, have: 205 * gib }, "en")
+        verify(text.indexOf("212 GB") > 0 && text.indexOf("205 GB") > 0 && text.indexOf("Linux Mint 22") >= 0, text)
+        verify(text.indexOf("%") < 0, text)
+        const unreadable = Logic.refusedText({ mode: "keep", reason: "unreadable", name: "Windows" }, "fr")
+        verify(unreadable.indexOf("Windows") >= 0 && unreadable.indexOf("%") < 0, unreadable)
+    }
+    function test_keeping_is_not_red_and_the_picture_shows_raye_in_its_place() {
+        const disk = mintDisk()
+        const option = disk.options[1]
+        verify(!Logic.deletes(option, disk))
+        verify(Logic.confirm(option, disk, "en").danger)
+        const picture = Logic.bars(disk, option, 0, "en")
+        const kinds = picture.after.map(p => p.kind)
+        compare(kinds, ["other", "raye"])
+        compare(picture.after[1].bytes, option.bytes)
+    }
+    function test_the_last_page_says_where_the_files_are() {
+        compare(Logic.keepResult("", "en"), "")
+        compare(Logic.keepResult("not json", "en"), "")
+        verify(Logic.keepResult('{"way":"stage","name":"Windows","ok":true}', "en").indexOf("Windows") >= 0)
+        verify(Logic.keepResult('{"way":"stage","ok":false,"left":true}', "fr").indexOf("raye_files") > 0)
+        verify(Logic.keepResult('{"way":"home","ok":false}', "en").indexOf("Nothing was deleted") >= 0)
+    }
 }
 
 TestCase {
