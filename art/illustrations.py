@@ -29,6 +29,7 @@ NAMES = (
     "language", "keyboard", "choose", "network", "disk",
     "account", "summary", "install", "done", "error",
     "key", "privacy", "look", "usb", "apps",
+    "desktop",
 )
 
 G = 320                     # design grid
@@ -374,6 +375,23 @@ def apps(k):
             else:
                 k.rrect((x, y, x + size, y + size), 12, width=THIN, layer="detail",
                         fill=SHAPE if (r + c) % 2 == 0 else SHAPE_DEEP)
+
+
+def desktop(k):
+    # one screen, two ways: windows that overlap on the left, windows
+    # tiled side by side on the right, the one in use in violet
+    k.rrect((40, 62, 280, 214), 12, fill=SHAPE)
+    k.stroke([(160, 76), (160, 200)], width=THIN, layer="detail")
+    k.rrect((56, 84, 130, 140), 6, width=THIN, layer="detail", fill=SHAPE_DEEP)
+    # the front window hides the lines of the one behind it
+    ImageDraw.Draw(k.detail).rounded_rectangle((px(76), px(112), px(148), px(170)), radius=px(6), fill=0)
+    k.rrect((76, 112, 148, 170), 6, width=THIN, layer="accent", fill=SHAPE_DEEP)
+    k.stroke([(84, 186), (140, 186)], width=THIN, layer="detail")
+    k.rrect((172, 78, 222, 198), 6, width=THIN, layer="accent", fill=SHAPE_DEEP)
+    k.rrect((230, 78, 266, 134), 6, width=THIN, layer="detail", fill=SHAPE_DEEP)
+    k.rrect((230, 142, 266, 198), 6, width=THIN, layer="detail", fill=SHAPE_DEEP)
+    k.stroke([(132, 214), (126, 244), (194, 244), (188, 214)], width=THIN, layer="detail")
+    k.stroke([(106, 254), (214, 254)], width=LINE)
 
 
 def write(out_dir):

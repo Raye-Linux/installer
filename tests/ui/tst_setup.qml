@@ -309,7 +309,7 @@ Item {
 
         function test_every_picture_loads() {
             const names = Theme.illustrationNames
-            compare(names.length, 15)
+            compare(names.length, 16)
             for (let i = 0; i < names.length; ++i) {
                 const item = createTemporaryObject(lateIllustration, root, { name: names[i] })
                 verify(item.known, names[i])

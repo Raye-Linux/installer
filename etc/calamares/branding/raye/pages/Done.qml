@@ -27,11 +27,14 @@ RayeFrame {
     property int secondsLeft: countdownSeconds
     // what happened to the files kept from the system Raye replaced
     property string keepText: ""
+    // "plasma-fallback" when Hyprland could not be added (rayedesktop)
+    property string desktopResult: ""
 
     onShown: (backward) => {
         secondsLeft = countdownSeconds
         countdown.running = !config.failed
         Requests.readPrivate("keep-result", text => { if (text) page.keepText = text })
+        Requests.readPrivate("desktop-result", text => { if (text.trim()) page.desktopResult = text.trim() })
     }
     function restart() {
         countdown.running = false
@@ -73,6 +76,16 @@ RayeFrame {
             Layout.fillWidth: true
             visible: !config.failed && text !== ""
             text: Logic.keepResult(page.keepText, page.lang)
+            font: Theme.body
+            color: Theme.textSecondary
+            wrapMode: Text.WordWrap
+        }
+
+        Text {
+            objectName: "desktopLine"
+            Layout.fillWidth: true
+            visible: !config.failed && page.desktopResult === "plasma-fallback"
+            text: S.t(page.lang, "doneDesktopFallback")
             font: Theme.body
             color: Theme.textSecondary
             wrapMode: Text.WordWrap

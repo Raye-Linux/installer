@@ -47,6 +47,7 @@ STEP_OF = {
     "notesqml@raye_account": "account",
     "usersq": "user",
     "notesqml@raye_privacy": "privacy",
+    "notesqml@raye_desktop": "desktop",
     "summaryq": "ready",
     "finishedq": "done",
 }
@@ -177,6 +178,34 @@ def test_setup_choices_job_runs_after_the_clock_and_the_account():
     assert jobs.index("hwclock") < at
     assert jobs.index("usersq") < at
     assert at < jobs.index("initramfs")
+
+
+def exec_jobs():
+    conf = (ETC / "settings.conf").read_text()
+    exec_part = conf.split("- exec:", 1)[1].split("- show:", 1)[0]
+    return [line[4:].strip() for line in exec_part.splitlines() if line.startswith("  - ")]
+
+
+def test_desktop_job_runs_after_the_account_and_the_package_lists():
+    jobs = exec_jobs()
+    at = jobs.index("rayedesktop")
+    # the account and the sign-in screen's settings exist, and apt has read
+    # the online lists when there is a network
+    for before in ("usersq", "displaymanager", "packages"):
+        assert jobs.index(before) < at, before
+    assert at < jobs.index("umount")
+
+
+def test_desktop_page_comes_right_before_the_summary():
+    steps = js_list("steps")
+    assert steps.index("desktop") == steps.index("ready") - 1
+
+
+def test_kde_is_what_the_desktop_page_picks_by_default():
+    page = (BRANDING / "pages/Desktop.qml").read_text()
+    assert re.search(r'property string choice: "plasma"', page)
+    en, fr = language_keys("en"), language_keys("fr")
+    assert "recommended" in en["desktopPlasma"] and "recommandé" in fr["desktopPlasma"]
 
 
 # ------------------------------------------------- the two the image showed

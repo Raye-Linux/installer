@@ -15,7 +15,7 @@
 #
 # It also leaves for the pages, before Calamares starts:
 #   /run/raye-setup/flags       key=value: osk, account_preview, account_server,
-#                               desktop
+#                               desktop, hyprland_offline
 #   /run/raye-setup/preflight   what raye-preflight found on the disks
 #   /run/raye-setup/disks.json  what the disk page may offer (raye-disks)
 
@@ -85,9 +85,16 @@ osk_available() {
         [ -n "$(sed -n 's/^Exec=//p' "$file" | head -1)" ]
 }
 
+# Hyprland travels on the stick as a small apt folder (the rayedesktop job
+# installs it from there); without it the desktop page says it downloads
+hyprland_offline() {
+    grep -qx 'Package: raye-hyprland' "${RAYE_DESKTOP_POOL:-/cdrom/raye/desktops}/Packages" 2>/dev/null
+}
+
 {
     echo "osk=$(osk_available && echo 1 || echo 0)"
     echo "desktop=$desktop"
+    echo "hyprland_offline=$(hyprland_offline && echo 1 || echo 0)"
     if flag_on && [ -n "$(account_server)" ]; then
         echo "account_preview=1"
         echo "account_server=$(account_server)"

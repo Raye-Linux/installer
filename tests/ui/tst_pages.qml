@@ -290,6 +290,87 @@ Item {
             verify(ready("en", true).indexOf(S.t("en", "readyErase")) >= 0)
         }
 
+        // ---- "Choose your desktop": KDE Plasma unless Hyprland is picked
+        function desktop(lang) {
+            const page = load("Desktop.qml", "desktop")
+            page.lang = lang
+            wait(50)
+            return page
+        }
+        function card(page, name) {
+            const hit = findObject(page, name)
+            verify(hit !== null, "no card " + name)
+            return hit
+        }
+        function findObject(item, name) {
+            if (!item)
+                return null
+            if (item.objectName === name)
+                return item
+            for (let i = 0; i < item.children.length; ++i) {
+                const hit = findObject(item.children[i], name)
+                if (hit)
+                    return hit
+            }
+            return null
+        }
+        function test_desktop_page_picks_kde_unless_told_otherwise_data() {
+            return [{ tag: "en", lang: "en" }, { tag: "fr", lang: "fr" }]
+        }
+        function test_desktop_page_picks_kde_unless_told_otherwise(data) {
+            const page = desktop(data.lang)
+            compare(page.choice, "plasma")
+            verify(card(page, "plasmaCard").checked)
+            verify(!card(page, "hyprlandCard").checked)
+            const words = shown(page)
+            for (const key of ["desktopTitle", "desktopPlasma", "desktopPlasmaLine",
+                               "desktopHyprland", "desktopHyprlandLine"])
+                verify(words.indexOf(S.t(data.lang, key)) >= 0, key + " is not on the page")
+            verify(words.indexOf(S.t(data.lang, "desktopBoth")) < 0, "KDE picked, but the page talks of switching")
+        }
+        function test_picking_hyprland_says_kde_stays() {
+            const page = desktop("en")
+            mouseClick(card(page, "hyprlandCard"))
+            compare(page.choice, "hyprland")
+            verify(card(page, "hyprlandCard").checked)
+            verify(!card(page, "plasmaCard").checked)
+            verify(shown(page).indexOf(S.t("en", "desktopBoth")) >= 0)
+            mouseClick(card(page, "plasmaCard"))
+            compare(page.choice, "plasma")
+        }
+        function test_hyprland_from_the_network_says_to_stay_online() {
+            const page = desktop("fr")
+            page.offline = "0"
+            mouseClick(card(page, "hyprlandCard"))
+            const line = findObject(page, "afterLine").text
+            verify(line.indexOf(S.t("fr", "desktopDownload")) >= 0, line)
+            page.offline = "1"
+            verify(findObject(page, "afterLine").text.indexOf(S.t("fr", "desktopDownload")) < 0)
+        }
+        function test_the_keyboard_picks_a_desktop_too() {
+            const page = desktop("en")
+            const hypr = card(page, "hyprlandCard")
+            hypr.forceActiveFocus()
+            keyClick(Qt.Key_Space)
+            compare(page.choice, "hyprland")
+        }
+        function test_ready_names_the_desktop() {
+            const words = ready("en", true)
+            verify(words.indexOf("KDE Plasma") >= 0, "no desktop on the summary: " + words)
+            loader.item.desktop = "hyprland"
+            wait(50)
+            verify(shown(loader.item).indexOf("Hyprland") >= 0, "Hyprland picked, not on the summary")
+            verify(shown(loader.item).indexOf(S.t("en", "readyDesktop")) >= 0)
+        }
+        function test_done_says_when_hyprland_could_not_be_added() {
+            const page = load("Done.qml", "done")
+            page.lang = "en"
+            verify(shown(page).indexOf(S.t("en", "doneDesktopFallback")) < 0)
+            page.desktopResult = "plasma-fallback"
+            wait(50)
+            verify(shown(page).indexOf(S.t("en", "doneDesktopFallback")) >= 0)
+        }
+
         // ---- the region page: formats follow the language picked last
 
         // Setup as Calamares runs it: the language page, then the region page

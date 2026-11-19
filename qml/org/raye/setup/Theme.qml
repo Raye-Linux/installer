@@ -31,7 +31,7 @@ QtObject {
     property string language: Qt.locale().name.startsWith("fr") ? "fr" : "en"
 
     // --- pictures -------------------------------------------------------
-    readonly property var illustrationNames: ["language", "keyboard", "choose", "network", "disk", "account", "summary", "install", "done", "error", "key", "privacy", "look", "usb", "apps"]
+    readonly property var illustrationNames: ["language", "keyboard", "choose", "network", "disk", "account", "summary", "install", "done", "error", "key", "privacy", "look", "usb", "apps", "desktop"]
 
     // --- colours (night) -----------------------------------------------
     // One flat grey behind everything, the desktop's own base colour: the

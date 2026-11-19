@@ -2,7 +2,8 @@
 //   tests/ui/run-page-preview.sh <Page.qml> <step> <scenario> [LANG]
 // Scenarios: cable, wifi, offline, encrypted, plain; for Disk.qml linux,
 // linux-ask (the "Delete ...?" box), linux-shrink, bios, keep, keep-ask,
-// keep-home, keep-room and keep-picked; for Done.qml keep-done and keep-left.
+// keep-home, keep-room and keep-picked; for Done.qml keep-done, keep-left and
+// desktop-fallback; for Desktop.qml hyprland and hyprland-online.
 import QtQuick
 import QtQuick.Window
 import io.calamares.core 1.0
@@ -25,6 +26,9 @@ Window {
         property var summaryModel: entries
         property var languagesModel: languages
         property int localeIndex: 0
+        // the last page: an install that went through
+        property bool failed: false
+        function doRestart(now) {}
         property var requirementsModel: QtObject {
             property bool satisfiedRequirements: true
             property bool satisfiedMandatory: true
@@ -60,6 +64,12 @@ Window {
                 win.showDisks(item)
             if ("keepText" in item && win.scenario === "keep-done")
                 item.keepText = '{"way":"stage","name":"Linux Mint 22","ok":true}'
+            if ("desktopResult" in item && win.scenario === "desktop-fallback")
+                item.desktopResult = "plasma-fallback"
+            if ("offline" in item && win.scenario.indexOf("hyprland") === 0) {
+                item.choice = "hyprland"
+                item.offline = win.scenario === "hyprland-online" ? "0" : "1"
+            }
             if ("keepText" in item && win.scenario === "keep-left")
                 item.keepText = '{"way":"stage","name":"Linux Mint 22","ok":false,"left":true}'
             if ("diskLabel" in item) {

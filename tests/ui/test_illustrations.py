@@ -41,10 +41,10 @@ def png_header(path):
     return width, height, colour
 
 
-def test_fifteen_names_and_both_lists_agree():
+def test_sixteen_names_and_both_lists_agree():
     names = generator_names()
-    assert len(names) == 15
-    assert len(set(names)) == 15
+    assert len(names) == 16
+    assert len(set(names)) == 16
     assert names == qml_names()
 
 

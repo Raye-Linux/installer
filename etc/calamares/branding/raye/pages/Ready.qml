@@ -32,13 +32,15 @@ RayeFrame {
     property string diskLabel: ""
     property string diskDetails: ""
     property bool encrypted: false
+    // the desktop page's answer: answer-desktop
+    property string desktop: "plasma"
     property bool detailsOpen: false
 
     readonly property bool erasing: install === "erase"
     readonly property var cards: Summary.cards({
         lang: lang, code: S.code(Qt.locale()), nativeName: Qt.locale().nativeLanguageName,
         zone: zone, keyboard: keyboard, install: install, diskLabel: diskLabel, encrypted: encrypted,
-        fullName: fullName, hostName: hostName })
+        fullName: fullName, hostName: hostName, desktop: desktop })
 
     onShown: (backward) => {
         const region = Global.value("locationRegion")
@@ -47,6 +49,7 @@ RayeFrame {
         fullName = Global.value("fullname") || ""
         detailsOpen = false
         Requests.answerOf("keyboard-label", text => keyboard = text.trim())
+        Requests.answerOf("desktop", text => desktop = text.trim() || "plasma")
         Requests.answerOf("hostname", text => hostName = text.trim() || Global.value("hostname") || "")
         Requests.answerOf("disk", text => {
             let answer = {}

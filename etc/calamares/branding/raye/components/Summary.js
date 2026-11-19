@@ -33,13 +33,18 @@ function countryName(zone, lang) {
     return country ? (lang === "fr" ? country.fr : country.en) : ""
 }
 
+// the session the account signs in to; KDE Plasma unless Hyprland was picked
+function desktopName(choice) {
+    return choice === "hyprland" ? "Hyprland" : "KDE Plasma"
+}
+
 function row(lang, key, value) {
     return { label: S.t(lang, key), value: String(value) }
 }
 
 // Cards of label and value, a row with nothing to say left out.
 //   choices: { lang, code, nativeName, zone, keyboard, install, diskLabel,
-//              encrypted, fullName, hostName }
+//              encrypted, fullName, hostName, desktop }
 function cards(c) {
     const lang = c.lang
     const language = [
@@ -55,7 +60,8 @@ function cards(c) {
     ]
     const account = [
         row(lang, "readyName", c.fullName || ""),
-        row(lang, "readyPcName", c.hostName || "")
+        row(lang, "readyPcName", c.hostName || ""),
+        row(lang, "readyDesktop", desktopName(c.desktop))
     ]
     const keep = rows => rows.filter(r => r.value !== "")
     return [

@@ -26,6 +26,7 @@ var words = {
         stageDisk: "Disk",
         stageAccount: "Account",
         stagePrivacy: "Privacy",
+        stageDesktop: "Desktop",
         stageInstall: "Install",
         stageOf: "Step %1 of %2: %3",
 
@@ -178,6 +179,7 @@ var words = {
         keepDone: "Your files from %1 are in your folders.",
         keepLeft: "Some of your files couldn't be copied. Nothing was lost: all of them are still on this PC, in the partition named raye_files.",
         keepNotMoved: "Some of your folders couldn't be moved. Nothing was deleted: they're still in your Home folder.",
+        doneDesktopFallback: "Hyprland couldn't be installed, so Raye starts with KDE Plasma.",
 
         deviceTitle: "Let's name your device",
         deviceText: "A name makes it easier to recognize this PC on your network and when you share files.",
@@ -218,6 +220,15 @@ var words = {
         on: "On",
         off: "Off",
 
+        desktopTitle: "Choose your desktop",
+        desktopText: "This is what you'll see after you sign in. If you're not sure, keep the one we recommend.",
+        desktopPlasma: "KDE Plasma (recommended)",
+        desktopPlasmaLine: "The full Raye desktop, made to work like Windows: taskbar, Start menu, windows you drag and snap.",
+        desktopHyprland: "Hyprland",
+        desktopHyprlandLine: "A tiling desktop: windows line up side by side on their own, and you do most things with the keyboard. For people who already know Hyprland.",
+        desktopBoth: "KDE Plasma stays installed too. You can switch between the two on the sign-in screen.",
+        desktopDownload: "Raye downloads Hyprland while it installs, so stay connected to the internet.",
+
         readyTitle: "Ready to install",
         readyText: "Check these choices. Raye starts installing when you select Install.",
         readyErase: "Everything on this disk will be deleted, including your files, apps and settings.",
@@ -238,6 +249,7 @@ var words = {
         readyAccountCard: "Account",
         readyName: "Name",
         readyPcName: "PC name",
+        readyDesktop: "Desktop",
         readyDetailsShow: "Show disk details",
         readyDetailsHide: "Hide disk details",
 
@@ -287,6 +299,7 @@ var words = {
         stageDisk: "Disque",
         stageAccount: "Compte",
         stagePrivacy: "Confidentialité",
+        stageDesktop: "Bureau",
         stageInstall: "Installation",
         stageOf: "Étape %1 sur %2 : %3",
 
@@ -439,6 +452,7 @@ var words = {
         keepDone: "Vos fichiers de %1 sont dans vos dossiers.",
         keepLeft: "Certains de vos fichiers n'ont pas pu être copiés. Rien n'est perdu\u00a0: ils sont tous encore sur ce PC, dans la partition nommée raye_files.",
         keepNotMoved: "Certains de vos dossiers n'ont pas pu être déplacés. Rien n'a été supprimé\u00a0: ils sont toujours dans votre dossier personnel.",
+        doneDesktopFallback: "Hyprland n'a pas pu être installé, Raye démarrera donc avec KDE Plasma.",
 
         deviceTitle: "Donnons un nom à votre appareil",
         deviceText: "Un nom permet de reconnaître plus facilement ce PC sur votre réseau et quand vous partagez des fichiers.",
@@ -479,6 +493,15 @@ var words = {
         on: "Activé",
         off: "Désactivé",
 
+        desktopTitle: "Choisissez votre bureau",
+        desktopText: "C'est ce que vous verrez après la connexion. Si vous hésitez, gardez celui que nous recommandons.",
+        desktopPlasma: "KDE Plasma (recommandé)",
+        desktopPlasmaLine: "Le bureau Raye complet, pensé pour fonctionner comme Windows\u00a0: barre des tâches, menu Démarrer, fenêtres qu'on déplace et qu'on aligne.",
+        desktopHyprland: "Hyprland",
+        desktopHyprlandLine: "Un bureau en mosaïque\u00a0: les fenêtres se rangent côte à côte d'elles-mêmes et presque tout se fait au clavier. Pour ceux qui connaissent déjà Hyprland.",
+        desktopBoth: "KDE Plasma reste installé lui aussi. Vous pourrez passer de l'un à l'autre sur l'écran de connexion.",
+        desktopDownload: "Raye télécharge Hyprland pendant l'installation, restez donc connecté à Internet.",
+
         readyTitle: "Prêt pour l'installation",
         readyText: "Vérifiez ces choix. L'installation commence quand vous sélectionnez Installer.",
         readyErase: "Tout ce qui se trouve sur ce disque sera supprimé, y compris vos fichiers, applications et paramètres.",
@@ -499,6 +522,7 @@ var words = {
         readyAccountCard: "Compte",
         readyName: "Nom",
         readyPcName: "Nom du PC",
+        readyDesktop: "Bureau",
         readyDetailsShow: "Afficher les détails du disque",
         readyDetailsHide: "Masquer les détails du disque",
 
@@ -707,13 +731,14 @@ function installStep(stage) {
 // The steps of settings.conf's show sequence, by position, and the stage
 // each one belongs to in the progress line of the top bar.
 var steps = ["language", "region", "keyboard", "network", "disk", "device",
-             "account", "user", "privacy", "ready", "installing", "done"]
+             "account", "user", "privacy", "desktop", "ready", "installing", "done"]
 var stages = [
     { key: "stageRegion", steps: ["language", "region", "keyboard"] },
     { key: "stageNetwork", steps: ["network"] },
     { key: "stageDisk", steps: ["disk"] },
     { key: "stageAccount", steps: ["device", "account", "user"] },
     { key: "stagePrivacy", steps: ["privacy"] },
+    { key: "stageDesktop", steps: ["desktop"] },
     { key: "stageInstall", steps: ["ready", "installing", "done"] }
 ]
 
