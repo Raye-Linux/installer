@@ -11,7 +11,8 @@ Build-Depends: debhelper-compat (= 13),
                libkf6solid-dev,
                python3-pytest <!nocheck>,
                fdisk <!nocheck>,
-               ntfs-3g <!nocheck>
+               ntfs-3g <!nocheck>,
+               e2fsprogs <!nocheck>
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
 Vcs-Git: https://github.com/Raye-Linux/installer.git
