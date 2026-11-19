@@ -1,3 +1,10 @@
+calamares-settings-raye (1.0~beta2) resolute; urgency=medium
+
+  * Setup asks which desktop to use, KDE Plasma or Hyprland, and installs
+    Hyprland from the USB stick when it is picked.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Thu, 19 Nov 2026 10:00:00 +0000
+
 calamares-settings-raye (1.0~beta1) resolute; urgency=high
 
   * Install next to another Linux: ext4 and btrfs volumes can be made
@@ -12,8 +19,6 @@ calamares-settings-raye (1.0~beta1) resolute; urgency=high
   * Setup can replace another Linux or Windows and keep your Desktop,
     Documents, Downloads, Music, Pictures and Videos, copied and checked
     file by file before anything is deleted.
-  * Setup asks which desktop to use, KDE Plasma or Hyprland, and installs
-    Hyprland from the USB stick when it is picked.
 
  -- techoraye <190692880+techoraye@users.noreply.github.com>  Thu, 19 Nov 2026 06:00:00 +0000
 
