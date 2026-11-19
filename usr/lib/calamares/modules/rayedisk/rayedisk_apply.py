@@ -24,9 +24,11 @@ second table write delete the old volume and add Raye's partitions.
 import contextlib
 import json
 import os
+import shutil
 import stat
 import time
 
+import rayedisk_extras as extras
 import rayedisk_keep as keep
 from rayedisk_core import Refused, btrfs_info, check_written, ext_info, keep_steps, table_script
 
@@ -347,6 +349,9 @@ class Writer:
                         missing.append(source)
                     self.note(f"copying {folder['kind']} of {user['name']}")
                     copier.copy_tree(source, os.path.join(new, "users", str(index), folder["kind"]))
+                paper = (user.get("wallpaper") or {}).get("path")
+                if paper and extras.wallpaper_inside(user) is None:
+                    self.stage_wallpaper(copier, old, kept, user, index, new, expected)
             done = copier.report()
             on_disk = keep.measure(os.path.join(new, "users")) if done["files"] else {"files": 0, "bytes": 0}
             write_manifest(new, kept, done)
@@ -355,6 +360,27 @@ class Writer:
                 or on_disk["files"] != expected["files"] or on_disk["bytes"] != expected["bytes"]:
             raise Refused("keep-copy", kept["source"])
         return done
+
+    def stage_wallpaper(self, copier, old, kept, user, index, new, expected):
+        """The wallpaper, when it is not in a kept folder: one file more."""
+        home = keep.real_dir(old, os.path.join(kept.get("base") or "", user["home"]))
+        names = user["wallpaper"]["path"].split("/")
+        folder = keep.real_dir(home, "/".join(names[:-1])) if home else None
+        if folder is None:
+            return
+        source = os.path.join(folder, names[-1])
+        target = copier.folder(os.path.join(new, "users", str(index), "wallpaper"))
+        try:
+            size = os.lstat(source).st_size
+            copier.copy_file(source, target, names[-1])
+        except (OSError, keep.CopyFailed):
+            # only a picture: never worth stopping the install for. What it
+            # left behind goes, or the count of the staged files is off.
+            shutil.rmtree(target, ignore_errors=True)
+            self.note("the wallpaper could not be copied")
+            return
+        expected["files"] += 1
+        expected["bytes"] += size
 
     def drop_stage(self, plan, staged):
         """Takes the staging partition away again; it only ever held copies."""

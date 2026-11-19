@@ -13,6 +13,7 @@ partition. Here they go into the new account.
 import os
 import time
 
+import rayedisk_extras as extras
 import rayedisk_keep as keep
 from rayedisk_apply import CommandFailed, Writer, staged_number
 from rayedisk_core import Refused, check_written
@@ -28,7 +29,8 @@ def keep_storage(plan_made, made):
     stage = plan_made.get("stage") or {}
     users = [{"name": u["name"], "home": u["home"], "uid": u.get("uid", -1),
               "folders": [{"kind": f["kind"], "path": f["path"], "files": f["files"], "bytes": f["bytes"]}
-                          for f in u["folders"]]} for u in kept["users"]]
+                          for f in u["folders"]],
+              "wallpaper": u.get("wallpaper") or {}} for u in kept["users"]]
     return {"way": kept["way"], "name": kept.get("name", ""), "system": kept.get("system", "linux"),
             "disk": plan_made["disk"], "hardware": plan_made.get("hardware", ""),
             "label": plan_made.get("label", "gpt"),
@@ -36,7 +38,8 @@ def keep_storage(plan_made, made):
             "stageStart": stage.get("start", 0), "stageSectors": stage.get("sectors", 0),
             "root": root.get("device", ""), "rootStart": added.get("start", 0),
             "rootSectors": added.get("sectors", 0), "luks": root.get("luksMapperName", ""),
-            "users": users, "files": kept.get("files", 0), "bytes": kept.get("bytes", 0)}
+            "users": users, "apps": list(kept.get("apps") or []),
+            "files": kept.get("files", 0), "bytes": kept.get("bytes", 0)}
 
 
 def account(root, username):
@@ -78,6 +81,49 @@ def set_user_dirs(home, lang, owner):
     os.replace(temporary, path)
 
 
+def finish_extras(kept, root, home, lang, owner, loose_picture):
+    """After the folders: the browsers' locks off, the wallpaper in place,
+    and the first sign-in's one-shot that sets it and brings the apps back.
+
+    loose_picture(index, user) is the file to copy when the wallpaper was
+    not in a kept folder. Returns {"wallpaper": bool, "apps": count}."""
+    several = len(kept["users"]) > 1
+    for kind, path in keep.PROFILES.items():
+        where = keep.real_dir(home, path)
+        if where and any(f["kind"] == kind for u in kept["users"] for f in u["folders"]):
+            try:
+                extras.clear_browser_locks(where)
+            except OSError:
+                pass
+    picture = ""
+    for index, user in enumerate(kept["users"]):
+        if not (user.get("wallpaper") or {}).get("path"):
+            continue
+        inside = extras.wallpaper_inside(user)
+        if inside:
+            kind, rest = inside
+            spot = os.path.join(home, keep.destination(lang, kind, user["name"], several), rest)
+            picture = spot if os.path.isfile(spot) and not os.path.islink(spot) else ""
+        else:
+            source = loose_picture(index, user)
+            if source:
+                try:
+                    pictures = keep.Copier(owner=owner).folder(
+                        os.path.join(home, keep.FOLDERS.get(lang, keep.ENGLISH)["pictures"]))
+                    name = extras.picture_name(os.path.basename(source), source, lang)
+                    picture = keep.Copier(owner=owner).copy_file(source, pictures, name)
+                except (OSError, keep.CopyFailed):
+                    picture = ""
+        break
+    in_target = ("/" + os.path.relpath(picture, root)) if picture else ""
+    apps = kept.get("apps") or []
+    try:
+        extras.leave_welcome_back(root, home, owner, lang, wallpaper=in_target, apps=apps)
+    except OSError:
+        return {"wallpaper": False, "apps": 0}
+    return {"wallpaper": bool(in_target), "apps": len(apps)}
+
+
 def _result(kept, ok, **more):
     entry = {"way": kept["way"], "name": kept.get("name", ""), "ok": ok}
     entry.update(more)
@@ -111,7 +157,15 @@ class Finisher(Writer):
                 moved += count
                 failed += missed
         self.note(f"moved {moved} items into {home}, {len(failed)} failed")
-        return _result(kept, not failed, moved=moved, failed=len(failed))
+
+        def loose_picture(index, user):
+            name = moved_aside if moved_aside and user["home"] == username else user["home"]
+            old = keep.real_dir(os.path.join(root, "home"), name)
+            names = user["wallpaper"]["path"].split("/")
+            folder = keep.real_dir(old, "/".join(names[:-1])) if old else None
+            return os.path.join(folder, names[-1]) if folder else ""
+        more = finish_extras(kept, root, home, lang, (uid, gid), loose_picture)
+        return _result(kept, not failed, moved=moved, failed=len(failed), **more)
 
     def bring_home(self, kept, root, username, lang, passphrase=""):
         """The stage way: copy, read back, then take the staging partition away."""
@@ -135,11 +189,18 @@ class Finisher(Writer):
                     expected += keep.measure(source)["files"]
                     target = os.path.join(home, keep.destination(lang, folder["kind"], user["name"], several))
                     copier.copy_tree(source, target)
-        done = copier.report()
+            done = copier.report()
+
+            def loose_picture(index, user):
+                folder = keep.real_dir(stage, os.path.join("users", str(index), "wallpaper"))
+                name = os.path.basename(user["wallpaper"]["path"])
+                return os.path.join(folder, name) if folder and os.path.isfile(os.path.join(folder, name)) else ""
+            # before the staging partition goes: the picture may be on it
+            more = finish_extras(kept, root, home, lang, (uid, gid), loose_picture)
         self.note(f"copied {done['files']} files into {home}, {done['failed']} failed")
         ok = not missing and not done["failed"] and done["files"] == expected == kept.get("files", expected)
         if not ok:
-            return _result(kept, False, files=done["files"], failed=done["failed"] + missing, left=True)
+            return _result(kept, False, files=done["files"], failed=done["failed"] + missing, left=True, **more)
         try:
             grown, left = self.drop_stage_and_grow(kept, root, passphrase), False
         except (Refused, CommandFailed) as no:
@@ -147,7 +208,7 @@ class Finisher(Writer):
             self.note(f"the staging partition stays: {no}")
             grown, left = False, True
         return _result(kept, True, files=done["files"], bytes=done["bytes"], skipped=done["skipped"],
-                       left=left, grown=grown)
+                       left=left, grown=grown, **more)
 
     def patiently(self, argv, tries=10):
         """A command udev may still be busy against (it probes what was just

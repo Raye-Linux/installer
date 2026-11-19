@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 
+import rayedisk_extras as extras
 import rayedisk_keep as keep
 from rayedisk_core import (ESP_TYPE, HIDDEN_TYPES, LINUX_FS, Refused, btrfs_info, bytes_of_ntfsresize,
                            ext_info, ext_minimum)
@@ -288,6 +289,32 @@ def mounted_read_only(part, run=run_text):
             part["mounted"] = True
 
 
+def add_extras(users, base, root, windows=False):
+    """On top of the folders: one account's wallpaper and browser profiles
+    (the first that has them), and for a Linux the Wi-Fi networks it saved
+    (how many, never their keys) and its Flatpak apps."""
+    with_wallpaper = with_browser = False
+    for user in users:
+        home = keep.real_dir(base, user["home"])
+        if home is None:
+            continue
+        if not with_wallpaper:
+            found = extras.windows_wallpaper(home) if windows else \
+                extras.find_wallpaper(home, "/home/" + user["home"])
+            if found:
+                user["wallpaper"] = {"path": found, "bytes": os.lstat(os.path.join(home, found)).st_size}
+                with_wallpaper = True
+        if not windows and not with_browser:
+            profiles = extras.browser_folders(home)
+            if profiles:
+                user["folders"] += profiles
+                with_browser = True
+    if windows:
+        return {}
+    homes = [h for h in (keep.real_dir(base, u["home"]) for u in users) if h]
+    return {"wifi": len(extras.wifi_names(root)), "apps": extras.flatpak_apps(root, homes)}
+
+
 def look_for_files(part, everything, opener):
     """The folders Raye can keep from one volume, None for nothing to keep."""
     fstype = part["fstype"]
@@ -296,8 +323,10 @@ def look_for_files(part, everything, opener):
             users_dir = keep.real_dir(top, "Users") if top else None
             if users_dir is None:
                 return None
+            users = keep.windows_users(users_dir)
+            add_extras(users, users_dir, None, windows=True)
             return {"system": "windows", "name": part.get("os") or "Windows",
-                    "base": "Users", "users": keep.windows_users(users_dir)}
+                    "base": "Users", "users": users}
     with opener(part) as top:
         info = keep.look_linux(top, fstype, part.get("uuid")) if top else None
         if info is None:
@@ -307,7 +336,8 @@ def look_for_files(part, everything, opener):
         if home["on"] == "self":
             base = keep.real_dir(top, home["path"]) if home["path"] else top
             users = keep.linux_users(root, base) if base else []
-            return {"system": "linux", "name": info["name"], "base": home["path"], "users": users}
+            return {"system": "linux", "name": info["name"], "base": home["path"], "users": users,
+                    "extras": add_extras(users, base, root) if base else {}}
         other = keep.resolve_spec(home["spec"], everything)
         if other is None or other is part or other.get("mounted") or other.get("findings"):
             return None
@@ -315,8 +345,9 @@ def look_for_files(part, everything, opener):
         with opener(other) as htop:
             base = (keep.real_dir(htop, sub) if sub else htop) if htop else None
             users = keep.linux_users(root, base) if base else []
+            found = add_extras(users, base, root) if base else {}
         return {"system": "linux", "name": info["name"], "base": sub, "home": other["node"],
-                "users": users}
+                "users": users, "extras": found}
 
 
 def find_files_to_keep(disks, run=run_text, only=None, opener=None):

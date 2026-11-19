@@ -187,6 +187,12 @@ def test_program_without_exec_bit_is_an_error(tmp_path):
     assert any("casper-bottom/16x" in e and "executable" in e for e in errors)
 
 
+def test_initrd_script_under_etc_needs_its_exec_bit(tmp_path):
+    root = repo(tmp_path, "one etc/initramfs-tools/scripts/casper-bottom/13x\n")
+    write(root / "etc/initramfs-tools/scripts/casper-bottom/13x", mode=0o644)
+    assert any("casper-bottom/13x" in e and "executable" in e for e in make_plan(root).errors)
+
+
 # --------------------------------------------------------------- installing
 
 def test_install_copies_with_modes_and_symlinks(tmp_path):
@@ -278,6 +284,7 @@ SPEC_PATHS = {
     "usr/share/applications/calamares.desktop": "calamares-settings-raye",
     "usr/share/wayland-sessions/raye-setup.desktop": "calamares-settings-raye",
     "usr/share/initramfs-tools/scripts/casper-bottom/16raye_setup": "calamares-settings-raye",
+    "etc/initramfs-tools/scripts/casper-bottom/13swap": "calamares-settings-raye",
     "usr/share/raye/setup": "calamares-settings-raye",
     "usr/lib/x86_64-linux-gnu/qt6/qml/org/raye/setup": "qml6-module-org-raye-setup",
     "usr/bin/raye-first-run": "raye-first-run",

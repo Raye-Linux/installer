@@ -4,6 +4,15 @@ calamares-settings-raye (1.0~beta2) resolute; urgency=medium
     Hyprland from the USB stick when it is picked.
   * Disk warnings about a partition with no name start with a capital
     letter ("This partition is encrypted...").
+  * The USB stick no longer turns on the PC's own swap, so a hibernated
+    system on the disk is left as it is.
+  * Setup says on its first page when the processor is too old for some
+    apps and games, without stopping the install.
+  * Installing next to Windows offers to bring your files over: Settings
+    opens on Files from Windows after the first sign-in.
+  * Replacing another system and keeping your files also keeps your
+    wallpaper, saved Wi-Fi networks and Firefox or Chrome profile, and
+    reinstalls your Flatpak apps from the Store after you sign in.
 
  -- techoraye <190692880+techoraye@users.noreply.github.com>  Thu, 19 Nov 2026 10:00:00 +0000
 

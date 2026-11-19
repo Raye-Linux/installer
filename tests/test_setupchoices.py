@@ -396,3 +396,53 @@ def test_job_queues_the_language_from_calamares(sc, monkeypatch, tmp_path):
 def test_unit_hands_dollars_to_the_shell_not_to_systemd(sc):
     exec_lines = sc.LANGUAGE_UNIT.split("ExecStart=", 1)[1].split("\nRestart", 1)[0]
     assert "$(" not in exec_lines.replace("$$(", "") and '"$code"' not in exec_lines
+
+
+# --- files from Windows, asked on the disk page next to Windows -----------
+
+NEXT_TO_WINDOWS = {"keyboardLayout": "us", "partitionChoices": {"install": "alongside", "swap": "file"}}
+
+
+def test_bring_my_files_opens_the_page_at_first_sign_in(sc, monkeypatch, tmp_path):
+    answers(sc, monkeypatch, tmp_path, windows_files="bring")
+    root, _ = run_job(sc, monkeypatch, tmp_path, None, NEXT_TO_WINDOWS)
+    home = root / "home/ana"
+    # the notification would ask again: the person already said yes
+    assert "[WindowsImport]\nOffered=true\n" in (home / ".config/raye-settingsrc").read_text()
+    entry = (home / ".config/autostart/raye-windows-files.desktop").read_text()
+    assert "Exec=/bin/sh /home/ana/.local/share/raye/windows-files\n" in entry
+    assert "OnlyShowIn=KDE;\n" in entry and "NoDisplay=true\n" in entry
+    script = (home / ".local/share/raye/windows-files").read_text()
+    assert "raye-settings accounts/windows-files" in script
+    # once: it takes itself and its autostart entry away first
+    assert script.index("rm -f") < script.index("raye-settings accounts/windows-files")
+    assert "raye-first-run" in script
+
+
+def test_later_only_keeps_the_notification_away(sc, monkeypatch, tmp_path):
+    answers(sc, monkeypatch, tmp_path, windows_files="later")
+    root, _ = run_job(sc, monkeypatch, tmp_path, None, NEXT_TO_WINDOWS)
+    home = root / "home/ana"
+    assert "Offered=true" in (home / ".config/raye-settingsrc").read_text()
+    assert not (home / ".config/autostart/raye-windows-files.desktop").exists()
+
+
+@pytest.mark.parametrize("found,install", [
+    ({}, "alongside"),                          # never asked: Settings' own notification decides
+    ({"windows_files": "bring"}, "erase"),      # Windows is gone, nothing to bring
+    ({"windows_files": "maybe"}, "alongside"),
+])
+def test_no_answer_or_no_windows_changes_nothing(sc, monkeypatch, tmp_path, found, install):
+    answers(sc, monkeypatch, tmp_path, **found)
+    root, _ = run_job(sc, monkeypatch, tmp_path, None,
+                      {"keyboardLayout": "us", "partitionChoices": {"install": install}})
+    home = root / "home/ana"
+    assert not (home / ".config/raye-settingsrc").exists()
+    assert not (home / ".config/autostart").exists()
+
+
+def test_windows_files_script_parses(sc, tmp_path):
+    path = tmp_path / "windows-files"
+    path.write_text(sc.WINDOWS_FILES_SCRIPT)
+    import subprocess
+    subprocess.run(["sh", "-n", str(path)], check=True)

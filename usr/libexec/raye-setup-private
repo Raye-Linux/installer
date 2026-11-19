@@ -29,11 +29,12 @@ case $what in
         chown 0:0 -- "$dir"
         chmod 0700 -- "$dir"
         # nothing of an earlier run counts
-        rm -f -- "$secret" "$dir/answer-disk" "$dir/keep-result" "$dir/desktop-result"
+        rm -f -- "$secret" "$dir/answer-disk" "$dir/keep-result" "$dir/desktop-result" "$dir/keep-wifi"
         ( umask 077 && : > "$secret" )
         ;;
     clear)
-        rm -f -- "$secret"
+        # keep-wifi holds the Wi-Fi keys of the system Setup replaced
+        rm -f -- "$secret" "$dir/keep-wifi"
         ;;
     *)
         echo "usage: raye-setup-private prepare|clear [folder]" >&2

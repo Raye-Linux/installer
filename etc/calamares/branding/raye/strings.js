@@ -47,6 +47,10 @@ var words = {
         languageSearch: "Search for a language",
         notReadyTitle: "This PC can't run Raye",
         notReadyLine: "Fix this, then start Setup again:",
+        cpuOldTitle: "This PC's processor is on the older side",
+        cpuOldText: "Raye Linux runs on it, but some apps and games need a newer processor and won't open.",
+        cpuTooOldTitle: "This PC's processor is too old for Raye Linux",
+        cpuTooOldText: "Raye needs a 64-bit processor with SSE2. It won't start on this one.",
         beforeTitle: "Before you install next to Windows",
         beforeTitleDisk: "Before you install",
         bitlocker: "Windows is encrypted with BitLocker. To install Raye next to it, start Windows, open Manage BitLocker and choose Suspend protection, then come back. Keep your BitLocker recovery key at hand.",
@@ -146,6 +150,8 @@ var words = {
         diskNow: "Now",
         diskAfter: "After the install",
         diskFreeWord: "Free space",
+        diskWindowsFiles: "Bring my files from Windows after setup",
+        diskWindowsFilesLine: "Windows stays as it is. You'll pick the folders to copy after you first sign in.",
         diskEncrypt: "Encrypt Raye with a password",
         diskEncryptLine: "If this PC is lost or stolen, nobody can read your files without this password.",
         diskPassLabel: "Disk password",
@@ -164,6 +170,14 @@ var words = {
         folderMusic: "Music",
         folderPictures: "Pictures",
         folderVideos: "Videos",
+        folderFirefox: "Firefox profile",
+        folderChrome: "Chrome profile",
+        folderChromium: "Chromium profile",
+        keptWallpaper: "Your wallpaper",
+        keptWifi: "Saved Wi-Fi networks",
+        keptWifiCount: "%1 networks",
+        keptApps: "Your apps, reinstalled from the Store",
+        keptAppsCount: "%1 apps",
         diskKeepTitle: "Replace %1 and keep my files",
         diskKeepLine: "Your Desktop, Documents, Downloads, Music, Pictures and Videos come with you (%2). Everything else on %1 is deleted.",
         diskKeepRoom: "Raye can't keep your files from %1 here: copying them safely takes %2 on this disk, and there's %3. Copy them to a USB drive first, or free up some space in it.",
@@ -320,6 +334,10 @@ var words = {
         languageSearch: "Rechercher une langue",
         notReadyTitle: "Ce PC ne peut pas faire fonctionner Raye",
         notReadyLine: "Réglez ceci, puis relancez l'installation :",
+        cpuOldTitle: "Le processeur de ce PC est plutôt ancien",
+        cpuOldText: "Raye Linux fonctionne dessus, mais certaines applis et certains jeux demandent un processeur plus récent et ne s'ouvriront pas.",
+        cpuTooOldTitle: "Le processeur de ce PC est trop ancien pour Raye Linux",
+        cpuTooOldText: "Raye a besoin d'un processeur 64 bits avec SSE2. Il ne démarrera pas sur celui-ci.",
         beforeTitle: "Avant d'installer à côté de Windows",
         beforeTitleDisk: "Avant d'installer",
         bitlocker: "Windows est chiffré avec BitLocker. Pour installer Raye à côté, démarrez Windows, ouvrez Gérer BitLocker et choisissez Suspendre la protection, puis revenez ici. Gardez votre clé de récupération BitLocker sous la main.",
@@ -419,6 +437,8 @@ var words = {
         diskNow: "Maintenant",
         diskAfter: "Après l'installation",
         diskFreeWord: "Espace libre",
+        diskWindowsFiles: "Ramener mes fichiers de Windows après l'installation",
+        diskWindowsFilesLine: "Windows reste tel quel. Vous choisirez les dossiers à copier après votre première connexion.",
         diskEncrypt: "Chiffrer Raye avec un mot de passe",
         diskEncryptLine: "Si ce PC est perdu ou volé, personne ne pourra lire vos fichiers sans ce mot de passe.",
         diskPassLabel: "Mot de passe du disque",
@@ -437,6 +457,14 @@ var words = {
         folderMusic: "Musique",
         folderPictures: "Images",
         folderVideos: "Vidéos",
+        folderFirefox: "Profil Firefox",
+        folderChrome: "Profil Chrome",
+        folderChromium: "Profil Chromium",
+        keptWallpaper: "Votre fond d'écran",
+        keptWifi: "Réseaux Wi-Fi enregistrés",
+        keptWifiCount: "%1 réseaux",
+        keptApps: "Vos applis, réinstallées depuis le Store",
+        keptAppsCount: "%1 applis",
         diskKeepTitle: "Remplacer %1 et garder mes fichiers",
         diskKeepLine: "Votre Bureau, vos Documents, Téléchargements, Musique, Images et Vidéos vous suivent (%2). Tout le reste de %1 est supprimé.",
         diskKeepRoom: "Raye ne peut pas garder vos fichiers de %1 ici\u00a0: les copier sans risque demande %2 sur ce disque, et il y a %3. Copiez-les d'abord sur une clé USB, ou libérez-y de la place.",
@@ -596,6 +624,17 @@ function listName(label) {
 // "Ready to install" page then spoke of another English than the one picked.
 function languageRow(label, englishLabel) {
     return englishLabel === "English" ? "English" : listName(label)
+}
+
+// What the first page says about the processor, from raye-cpu-check's
+// verdict. null says nothing: a processor that runs everything, or one we
+// could not read.
+function cpuNotice(verdict) {
+    if (verdict === "old")
+        return { title: "cpuOldTitle", text: "cpuOldText", severe: false }
+    if (verdict === "too-old")
+        return { title: "cpuTooOldTitle", text: "cpuTooOldText", severe: true }
+    return null
 }
 
 // What raye-preflight can print, in the order the card shows them.

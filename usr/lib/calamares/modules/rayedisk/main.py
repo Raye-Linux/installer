@@ -23,10 +23,12 @@ import libcalamares
 sys.path.insert(0, libcalamares.job.working_path)
 sys.dont_write_bytecode = True
 
-from rayedisk_apply import CommandFailed, Writer
+import rayedisk_extras as extras
+import rayedisk_keep as keep
+from rayedisk_apply import BACKUP_DIR, CommandFailed, Writer, write_private
 from rayedisk_core import Refused, plan
 from rayedisk_finish import keep_storage
-from rayedisk_probe import find_files_to_keep, hardware_of, read_machine, table_of
+from rayedisk_probe import find_files_to_keep, hardware_of, mounted_read_only, read_machine, table_of
 
 ANSWERS = "/run/raye-setup"
 ANSWER = os.path.join(ANSWERS, "answer-disk")
@@ -183,6 +185,29 @@ def fill_storage(gs, made, plan_made):
         gs.insert("rayeKeep", kept)
 
 
+# the old system's networks with their keys, for the rayekeep job
+WIFI = os.path.join(BACKUP_DIR, "keep-wifi")
+
+
+def save_wifi(disk, kept):
+    """The old system's saved Wi-Fi networks, keys and all, read before it
+    goes and left in root's own folder for the rayekeep job. A bonus: a
+    failure here only means the networks are typed again."""
+    if not kept or kept.get("system") != "linux":
+        return
+    part = next((p for p in disk["parts"] if p["node"] == kept["source"]), None)
+    if part is None:
+        return
+    try:
+        with mounted_read_only(part) as top:
+            where = keep.root_of(top) if top else None
+            connections = extras.wifi_connections(os.path.join(top, where)) if where is not None else []
+        if connections:
+            write_private(WIFI, json.dumps(connections, ensure_ascii=False))
+    except (OSError, Refused) as no:
+        libcalamares.utils.warning(f"rayedisk: Wi-Fi networks not kept: {no}")
+
+
 def run():
     words = TEXT[chosen_lang()]
     answer = read_answer()
@@ -214,6 +239,7 @@ def run():
                     note=lambda text: libcalamares.utils.debug("rayedisk: " + text),
                     progress=libcalamares.job.setprogress,
                     identify=hardware_of)
+    save_wifi(disk, made_plan.get("keep"))
     try:
         made = writer.apply(made_plan, disk, passphrase)
         kept = made_plan.get("keep")

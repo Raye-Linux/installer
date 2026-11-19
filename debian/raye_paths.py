@@ -28,7 +28,8 @@ from dataclasses import dataclass, field
 SHIPPED_ROOTS = ("etc", "usr", "qml", "assets/illustrations", "data")
 BUILD_TREE = "debian/tmp"
 # Files under these get run, so they must keep their exec bit.
-PROGRAM_DIRS = ("usr/bin/", "usr/sbin/", "usr/libexec/", "usr/share/initramfs-tools/scripts/")
+PROGRAM_DIRS = ("usr/bin/", "usr/sbin/", "usr/libexec/", "usr/share/initramfs-tools/scripts/",
+                "etc/initramfs-tools/scripts/")
 # Byproducts of running the tests, never shipped.
 SKIPPED_NAMES = ("__pycache__",)
 SKIPPED_SUFFIXES = (".pyc", ".pyo", "~")

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Takes the place of casper's own 13swap in the live image's initrd:
+# mkinitramfs copies /etc/initramfs-tools/scripts over /usr/share's, name
+# for name. casper turns on every Linux swap partition of the PC, and
+# swapon rewrites a swap that holds a hibernated system: that system then
+# starts from scratch and loses what was open. The stick swaps to zram.
+
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+case $1 in
+    prereqs) prereqs; exit 0 ;;
+esac
+
+exit 0

@@ -11,6 +11,9 @@
 #  - the password hint, for the sign-in screen (AccountsService).
 #  - the privacy page's switches, written where Settings keeps them.
 #  - the wish to sign in to a Raye account after setup (preview only).
+#  - next to Windows, "Bring my files from Windows": Settings opens on
+#    Files from Windows after the first sign-in; "later" keeps its
+#    notification from asking again.
 #  - for a language the image does not carry (only English and French
 #    do), a one-shot unit that fetches its language support the first time
 #    the new system is online. Calamares' packages step tries the language
@@ -20,7 +23,7 @@
 # starts: key=value lines, lang, locale, layout, variant, region, windows.
 # The Setup pages leave their answers next to it, one file each
 # (answer-second-layout, answer-password-hint, answer-privacy,
-# answer-account): Calamares' GlobalStorage is read-only from QML.
+# answer-account, answer-windows-files): Calamares' GlobalStorage is read-only from QML.
 #
 # This job has to run after `hwclock` (which sets the clock to UTC), so
 # also after `users`, and before `initramfs`.
@@ -314,6 +317,56 @@ def write_account_wish(root, username):
         set_ini(os.path.join(config, "raye-account-setuprc"), "Setup", "SignIn", "pending", owner)
 
 
+# Run once at the first sign-in, from the account's own autostart folder.
+WINDOWS_FILES = ("autostart", "raye-windows-files.desktop")
+WINDOWS_FILES_SCRIPT = """#!/bin/sh
+# Once, after the first sign-in: Settings on Files from Windows, as asked
+# in Setup. The welcome window goes first, so the two don't open together.
+rm -f "$HOME/.config/autostart/raye-windows-files.desktop" "$0"
+command -v raye-settings >/dev/null || exit 0
+sleep 5
+waited=0
+while [ "$waited" -lt 600 ] && pgrep -u "$(id -u)" -x raye-first-run >/dev/null; do
+    sleep 2
+    waited=$((waited + 2))
+done
+exec raye-settings accounts/windows-files
+"""
+
+
+def write_windows_files(root, username, answer):
+    """"bring": Settings opens on Files from Windows after the first sign-in.
+    Either way the notification of Settings doesn't ask again."""
+    where = config_folder(root, username)
+    if not where or answer not in ("bring", "later"):
+        return
+    config, owner = where
+    set_ini(os.path.join(config, "raye-settingsrc"), "WindowsImport", "Offered", "true", owner)
+    if answer != "bring" or owner is None:
+        return
+    home = os.path.dirname(config)
+    folder = home
+    for name in (".local", "share", "raye"):
+        folder = os.path.join(folder, name)
+        make_dir(folder, owner)
+    script = os.path.join(folder, "windows-files")
+    if os.path.islink(script):
+        raise OSError(f"{script} is a link")
+    atomic_write(script, WINDOWS_FILES_SCRIPT.encode(), 0o755)
+    os.chown(script, *owner)
+    autostart = os.path.join(config, WINDOWS_FILES[0])
+    make_dir(autostart, owner)
+    entry = os.path.join(autostart, WINDOWS_FILES[1])
+    if os.path.islink(entry):
+        raise OSError(f"{entry} is a link")
+    in_target = "/" + os.path.relpath(script, root)
+    atomic_write(entry, ("[Desktop Entry]\nType=Application\nName=Files from Windows\n"
+                         "Name[fr]=Fichiers de Windows\nNoDisplay=true\nOnlyShowIn=KDE;\n"
+                         "X-KDE-autostart-phase=2\n"
+                         f"Exec=/bin/sh {in_target}\n").encode(), 0o644)
+    os.chown(entry, *owner)
+
+
 # languages whose support is in the image (language-pack-*, kde, hunspell)
 IMAGE_LANGUAGES = ("en", "fr")
 LANG_VALUE = re.compile(r"([a-z]{2,3})(?:_([A-Z]{2}))?(?:\.[A-Za-z0-9-]+)?(?:@[a-z]+)?")
@@ -439,6 +492,8 @@ def run():
         write_privacy(root, username, parse_privacy(read_answer("privacy")))
         if read_answer("account") == "signin":
             write_account_wish(root, username)
+        if (gs.value("partitionChoices") or {}).get("install") == "alongside":
+            write_windows_files(root, username, read_answer("windows-files"))
     except OSError as e:
         libcalamares.utils.warning(f"setupchoices: account settings not written: {e}")
     return None

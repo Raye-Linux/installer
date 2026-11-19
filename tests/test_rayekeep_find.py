@@ -4,6 +4,7 @@
 Real folders under tmp_path stand for the mounted volumes.
 """
 import contextlib
+import json
 import os
 import pathlib
 import sys
@@ -192,3 +193,38 @@ def test_an_odd_account_name_stays_inside_the_folder():
         where = keep.destination("en", "music", name, True)
         assert where.startswith("Music" + os.sep)
         assert ".." not in where.split(os.sep) and where.count(os.sep) == 1
+
+
+def test_probe_brings_one_wallpaper_one_profile_and_the_systems_extras(tmp_path):
+    root, home = tmp_path / "root", tmp_path / "home"
+    linux_root(root, "UUID=r / ext4 defaults 0 1\nUUID=h /home ext4 defaults 0 2\n")
+    write(root / "etc/NetworkManager/system-connections/Home.nmconnection",
+          "[connection]\nid=Home\nuuid=1\ntype=wifi\n[wifi]\nssid=Home\n[wifi-security]\npsk=pw\n")
+    (root / "var/lib/flatpak/app/org.gimp.GIMP").mkdir(parents=True)
+    for user in ("alice", "bob"):
+        write(home / f"{user}/Documents/a.txt")
+        write(home / f"{user}/Pictures/wall.jpg", size=100)
+        write(home / f"{user}/.mozilla/firefox/profiles.ini", "[Profile0]\n")
+        write(home / f"{user}/.config/plasma-org.kde.plasma.desktop-appletsrc",
+              f"[Containments][1][Wallpaper][org.kde.image][General]\nImage=/home/{user}/Pictures/wall.jpg\n")
+    (home / "bob/.local/share/flatpak/app/org.videolan.VLC").mkdir(parents=True)
+    disk = {"node": "/dev/sda", "parts": [part("/dev/sda2", "ext4", uuid="r"), part("/dev/sda3", "ext4", uuid="h")]}
+    probe.find_files_to_keep([disk], opener=opener_of({"/dev/sda2": str(root), "/dev/sda3": str(home)}))
+    found = disk["parts"][0]["keep"]
+    alice, bob = found["users"]
+    assert alice["wallpaper"] == {"path": "Pictures/wall.jpg", "bytes": 100} and "wallpaper" not in bob
+    assert [f["kind"] for f in alice["folders"]] == ["documents", "pictures", "firefox"]
+    assert [f["kind"] for f in bob["folders"]] == ["documents", "pictures"]
+    # the page learns how many networks, never their names or keys
+    assert found["extras"] == {"wifi": 1, "apps": ["org.gimp.GIMP", "org.videolan.VLC"]}
+    assert "pw" not in json.dumps(found)
+
+
+def test_probe_reads_the_windows_wallpaper(tmp_path):
+    write(tmp_path / "Users/Ann/Pictures/p.png", size=64)
+    write(tmp_path / "Users/Ann/AppData/Roaming/Microsoft/Windows/Themes/TranscodedWallpaper", size=500)
+    disk = {"node": "/dev/sda", "parts": [part("/dev/sda3", "ntfs", os="Windows")]}
+    probe.find_files_to_keep([disk], opener=opener_of({"/dev/sda3": str(tmp_path)}))
+    ann = disk["parts"][0]["keep"]["users"][0]
+    assert ann["wallpaper"]["path"].endswith("Themes/TranscodedWallpaper")
+    assert [f["kind"] for f in ann["folders"]] == ["pictures"]

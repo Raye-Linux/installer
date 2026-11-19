@@ -4,8 +4,8 @@
 // language of the new system (its language pack comes with the install,
 // see modules/packages.conf).
 // Under it, only when there is something to say: what keeps this PC from
-// running Raye (disk, memory, power), and what to fix in Windows before
-// installing next to it (raye-preflight).
+// running Raye (disk, memory, power), an old processor (raye-cpu-check),
+// and what to fix in Windows before installing next to it (raye-preflight).
 
 import io.calamares.core 1.0
 import io.calamares.ui 1.0
@@ -28,11 +28,16 @@ RayeFrame {
     text: S.t(lang, "languageText")
 
     property var findings: []
+    property var cpu: ({})
+    readonly property var cpuNotice: S.cpuNotice(cpu.verdict)
     // Every language Calamares is translated into, with a search box. Off
     // for the beta (the owner's call): English and French only until the
     // language packs and the rest of Raye's words are ready.
     readonly property bool everyLanguage: false
-    Component.onCompleted: Requests.preflight(found => findings = found)
+    Component.onCompleted: {
+        Requests.preflight(found => findings = found)
+        Requests.cpu(found => { if (found.verdict) cpu = found })
+    }
     // Raye's own words exist in English and French; Setup is in English
     // for the rest, apart from what Calamares translates itself
     readonly property bool rayeWords: lang === "fr" || code === "en"
@@ -130,6 +135,37 @@ RayeFrame {
                         color: Theme.textPrimary
                         wrapMode: Text.WordWrap
                     }
+                }
+            }
+        }
+
+        // an old processor: said, never in the way
+        Rectangle {
+            readonly property color tone: page.cpuNotice && page.cpuNotice.severe ? Theme.error : Theme.caution
+            Layout.fillWidth: true
+            Layout.topMargin: 8
+            visible: page.cpuNotice !== null
+            implicitHeight: processor.implicitHeight + 24
+            radius: Theme.radiusControl
+            color: Qt.alpha(tone, 0.10)
+            border.color: Qt.alpha(tone, 0.35)
+            ColumnLayout {
+                id: processor
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                spacing: 4
+                Text {
+                    Layout.fillWidth: true
+                    text: page.cpuNotice ? S.t(page.lang, page.cpuNotice.title) : ""
+                    font: Theme.bodyStrong
+                    color: Theme.textPrimary
+                    wrapMode: Text.WordWrap
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: page.cpuNotice ? S.t(page.lang, page.cpuNotice.text) : ""
+                    font: Theme.body
+                    color: Theme.textSecondary
+                    wrapMode: Text.WordWrap
                 }
             }
         }

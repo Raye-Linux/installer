@@ -17,6 +17,7 @@
 #   /run/raye-setup/flags       key=value: osk, account_preview, account_server,
 #                               desktop, hyprland_offline
 #   /run/raye-setup/preflight   what raye-preflight found on the disks
+#   /run/raye-setup/cpu         whether the processor runs Raye (raye-cpu-check)
 #   /run/raye-setup/disks.json  what the disk page may offer (raye-disks)
 
 # --desktop: started by raye-install from a desktop ("Try Raye Linux", or
@@ -104,6 +105,7 @@ hyprland_offline() {
 } > "$dir/flags"
 
 sudo -n /usr/libexec/raye-preflight > "$dir/preflight" 2>/dev/null
+/usr/libexec/raye-cpu-check > "$dir/cpu" 2>/dev/null
 
 # In the background: os-prober takes its time on a disk with several systems,
 # and the page says it is still looking.

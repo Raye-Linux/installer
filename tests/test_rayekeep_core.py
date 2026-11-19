@@ -238,3 +238,25 @@ def test_old_table_with_no_slots_left_is_refused():
     assert keeps(core.options_for(full, "bios")[0]) == []
     with pytest.raises(core.Refused):
         core.plan(full, "bios", answer(), False)
+
+
+def test_what_comes_along_is_counted_for_the_page_and_carried_to_the_plan():
+    parts = mint()
+    keep = parts[1]["keep"]
+    keep["users"][0]["wallpaper"] = {"path": "Pictures/sea.jpg", "bytes": 1000}
+    keep["users"][0]["folders"].append({"kind": "firefox", "path": ".mozilla/firefox", "files": 40,
+                                        "bytes": GIB, "unreadable": 0})
+    keep["extras"] = {"wifi": 3, "apps": ["org.gimp.GIMP", "org.videolan.VLC"]}
+    option = keeps(core.options_for(disk(parts))[0])[0]
+    assert option["extras"] == {"wallpaper": True, "wifi": 3, "apps": 2}
+    # the profile counts in the room and the files like a folder
+    assert option["files"] == 5040 and option["size"] == 21 * GIB
+    assert option["users"][0]["folders"][-1]["kind"] == "firefox"
+    result = plan_of(parts)
+    assert result["keep"]["apps"] == ["org.gimp.GIMP", "org.videolan.VLC"]
+    assert result["keep"]["users"][0]["wallpaper"]["path"] == "Pictures/sea.jpg"
+
+
+def test_nothing_more_says_nothing_more():
+    option = keeps(core.options_for(disk(mint()))[0])[0]
+    assert option["extras"] == {"wallpaper": False, "wifi": 0, "apps": 0}

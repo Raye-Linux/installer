@@ -7,7 +7,8 @@
 #
 #   prepare  before the account is made: on a kept /home, a folder with the
 #            account's name is moved aside so the account starts clean
-#   copy     after: the folders go in (rayedisk_finish)
+#   copy     after: the folders go in (rayedisk_finish), and the Wi-Fi
+#            networks rayedisk read before the old system went
 #
 # Never stops the install: Raye is already in place by now, and the files
 # are on the disk either way. The last page says what happened, from
@@ -23,6 +24,7 @@ import libcalamares
 sys.path.insert(0, os.path.join(os.path.dirname(libcalamares.job.working_path), "rayedisk"))
 sys.dont_write_bytecode = True
 
+import rayedisk_extras as extras  # noqa: E402
 from rayedisk_apply import BACKUP_DIR, CommandFailed, write_private  # noqa: E402
 from rayedisk_core import Refused  # noqa: E402
 from rayedisk_finish import Finisher, make_room_for  # noqa: E402
@@ -30,6 +32,10 @@ from rayedisk_probe import hardware_of, table_of  # noqa: E402
 
 CHOICES = "/run/raye-setup/choices"
 RESULT = os.path.join(BACKUP_DIR, "keep-result")
+# written by rayedisk, root's alone: the networks with their keys
+WIFI = os.path.join(BACKUP_DIR, "keep-wifi")
+# the live session's own networks: Setup copies them over afterwards
+LIVE = "/"
 
 TEXT = {
     "en": {"name": "Bringing your files over"},
@@ -78,6 +84,28 @@ def passphrase_of(gs):
     return ""
 
 
+def bring_wifi(root):
+    """The saved networks into the new system. Returns how many."""
+    try:
+        with open(WIFI, encoding="utf-8") as f:
+            connections = json.loads(f.read(4 * 1024 * 1024))
+    except (OSError, ValueError):
+        return 0
+    try:
+        written = extras.install_wifi(root, [c for c in connections if isinstance(c, dict)
+                                             and {"ssid", "name", "text"} <= set(c)], live=LIVE)
+    except OSError as error:
+        libcalamares.utils.warning(f"rayekeep: Wi-Fi networks: {error}")
+        written = []
+    finally:
+        try:
+            os.unlink(WIFI)
+        except OSError:
+            pass
+    libcalamares.utils.debug(f"rayekeep: {len(written)} Wi-Fi networks kept")
+    return len(written)
+
+
 def run():
     gs = libcalamares.globalstorage
     kept = gs.value("rayeKeep")
@@ -108,6 +136,7 @@ def run():
         libcalamares.utils.warning(f"rayekeep: {no}")
         result = {"way": kept["way"], "name": kept.get("name", ""), "ok": False,
                   "left": kept["way"] == "stage"}
+    result["wifi"] = bring_wifi(root)
     try:
         write_private(RESULT, json.dumps(result, ensure_ascii=False))
     except Refused as no:

@@ -1,9 +1,11 @@
 // One page of Raye Setup in a window, against the fakes tst_pages.qml uses:
 //   tests/ui/run-page-preview.sh <Page.qml> <step> <scenario> [LANG]
 // Scenarios: cable, wifi, offline, encrypted, plain; for Disk.qml linux,
-// linux-ask (the "Delete ...?" box), linux-shrink, bios, keep, keep-ask,
+// linux-ask (the "Delete ...?" box), linux-shrink, bios, windows-files
+// (Windows made smaller), keep, keep-ask,
 // keep-home, keep-room and keep-picked; for Done.qml keep-done, keep-left and
-// desktop-fallback; for Desktop.qml hyprland and hyprland-online.
+// desktop-fallback; for Desktop.qml hyprland and hyprland-online; for
+// Language.qml cpu-old and cpu-too-old.
 import QtQuick
 import QtQuick.Window
 import io.calamares.core 1.0
@@ -62,6 +64,8 @@ Window {
                 item.keyboard = "English (US)"
             if ("report" in item)
                 win.showDisks(item)
+            if ("cpu" in item && win.scenario.indexOf("cpu-") === 0)
+                item.cpu = { level: "1", verdict: win.scenario.slice(4) }
             if ("keepText" in item && win.scenario === "keep-done")
                 item.keepText = '{"way":"stage","name":"Linux Mint 22","ok":true}'
             if ("desktopResult" in item && win.scenario === "desktop-fallback")
@@ -110,7 +114,8 @@ Window {
                                { kind: "downloads", files: 87, bytes: 6.4 * gib },
                                { kind: "music", files: 2310, bytes: 14.9 * gib },
                                { kind: "pictures", files: 8402, bytes: 41.6 * gib },
-                               { kind: "videos", files: 64, bytes: 22.5 * gib }] }]
+                               { kind: "videos", files: 64, bytes: 22.5 * gib },
+                               { kind: "firefox", files: 1650, bytes: 0.4 * gib }] }]
         const mint = { node: "/dev/nvme0n1", model: "Samsung SSD 980", size: 500 * gib, sector: 512, first: 2048,
                        last: 500 * gib / 512 - 34, id: "c", empty: false, blocked: "",
                        parts: [{ node: "/dev/nvme0n1p1", start: 2048, sectors: gib / 512, fstype: "vfat" },
@@ -118,7 +123,8 @@ Window {
                        options: [{ mode: "shrink", node: "/dev/nvme0n1p2", name: "Linux Mint 22", fstype: "ext4",
                                    total: 499 * gib, keepMin: 120 * gib, keepMax: 470 * gib, keepDefault: 250 * gib },
                                  { mode: "keep", way: "stage", node: "/dev/nvme0n1p2", name: "Linux Mint 22", fstype: "ext4",
-                                   bytes: 499 * gib, users: mintUsers, files: 12079, size: 88.8 * gib },
+                                   bytes: 499 * gib, users: mintUsers, files: 13729, size: 89.2 * gib,
+                                   extras: { wallpaper: true, wifi: 3, apps: 12 } },
                                  { mode: "replace", node: "/dev/nvme0n1p2", name: "Linux Mint 22", fstype: "ext4", bytes: 499 * gib },
                                  { mode: "erase" }],
                        refused: [] }
@@ -138,7 +144,7 @@ Window {
                         options: [mint.options[0], mint.options[2], { mode: "erase" }],
                         refused: [{ mode: "keep", node: "/dev/nvme0n1p2", name: "Linux Mint 22", reason: "room",
                                     needed: 212.4 * gib, have: 255 * gib - 50 * gib }] })
-        let shown = scenario === "bios" ? old : linux
+        let shown = scenario === "bios" || scenario === "windows-files" ? old : linux
         if (scenario.indexOf("keep") === 0)
             shown = scenario === "keep-home" ? split : scenario === "keep-room" ? full : mint
         page.report = { firmware: scenario === "bios" ? "bios" : "efi", disks: [shown] }
@@ -155,6 +161,8 @@ Window {
             page.ask(0)
         if (scenario === "keep-picked")
             page.pick(1)
+        if (scenario === "windows-files")
+            page.pick(0)
     }
 
     Component.onCompleted: {

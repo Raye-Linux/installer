@@ -248,6 +248,13 @@ def _keep_summary(keep):
             for u in keep["users"]]
 
 
+def _extras_summary(keep):
+    """The rest of what comes along, as counts the page can say."""
+    found = keep.get("extras") or {}
+    return {"wallpaper": any(u.get("wallpaper") for u in keep["users"]),
+            "wifi": int(found.get("wifi") or 0), "apps": len(found.get("apps") or [])}
+
+
 def _home_partition(disks, node):
     for disk in disks or []:
         for part in disk.get("parts", []):
@@ -266,7 +273,7 @@ def _keep_option(disk, part, firmware="efi", disks=None):
     unreadable = sum(f.get("unreadable", 0) for u in keep["users"] for f in u["folders"])
     base = {"mode": "keep", "node": part["node"], "number": part["number"],
             "name": keep.get("name") or _name(part), "fstype": part.get("fstype") or "",
-            "users": _keep_summary(keep), "files": files, "size": size_files}
+            "users": _keep_summary(keep), "extras": _extras_summary(keep), "files": files, "size": size_files}
     if unreadable:
         return None, {"mode": "keep", "node": part["node"], "name": base["name"], "reason": "unreadable"}
     size = part["sectors"] * disk["sector"]
@@ -558,6 +565,7 @@ def _plan_keep(disk, firmware, part, extra, label, result, disks):
                       "system": keep.get("system", "linux"), "name": option["name"],
                       "base": keep.get("base", ""), "home": keep.get("home") or "",
                       "homeFs": option.get("homeFs", ""), "users": keep["users"],
+                      "apps": list((keep.get("extras") or {}).get("apps") or []),
                       "files": option["files"], "bytes": option["size"]}
     if option["way"] == "home":
         end = align_down(min(part["start"] + part["sectors"], disk_end(disk)), align)

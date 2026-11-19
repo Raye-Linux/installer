@@ -88,7 +88,38 @@ function kept(option, lang) {
                                                               count(folders[j].files, lang)]) })
         }
     }
+    // what comes along besides the folders
+    var more = option.extras || {}
+    if (more.wallpaper)
+        rows.push({ label: S.t(lang, "keptWallpaper"), detail: "" })
+    if (more.wifi > 0)
+        rows.push({ label: S.t(lang, "keptWifi"), detail: S.t(lang, "keptWifiCount", [count(more.wifi, lang)]) })
+    if (more.apps > 0)
+        rows.push({ label: S.t(lang, "keptApps"), detail: S.t(lang, "keptAppsCount", [count(more.apps, lang)]) })
     return rows
+}
+
+// Next to Windows (made smaller, or free space beside it) Setup offers to
+// bring its files over after the first sign-in: Settings opens on Files
+// from Windows. Not when Windows goes: its files are kept another way.
+function offersWindowsFiles(disk, option) {
+    if (!disk || !option)
+        return false
+    var parts = disk.parts || []
+    function windows(p) { return p.os === "Windows" && (!p.fstype || p.fstype === "ntfs") }
+    if (option.mode === "shrink")
+        return option.fstype === "ntfs" || parts.some(function(p) { return p.node === option.node && windows(p) })
+    if (option.mode === "free")
+        return parts.some(windows)
+    return false
+}
+
+// What the rayesetupchoices job reads: "bring", "later", or "" when the
+// question was not asked
+function windowsFilesAnswer(disk, option, complete, checked) {
+    if (!complete || !offersWindowsFiles(disk, option))
+        return ""
+    return checked ? "bring" : "later"
 }
 
 function refusedText(refusal, lang) {

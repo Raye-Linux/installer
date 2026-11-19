@@ -205,3 +205,27 @@ def test_the_job_finds_its_own_files_the_way_calamares_runs_it():
     text = (FOLDER / "main.py").read_text()
     assert "sys.path.insert(0, libcalamares.job.working_path)" in text
     assert text.index("sys.path.insert") < text.index("from rayedisk_apply")
+
+
+def test_wifi_of_the_replaced_linux_is_read_before_it_goes(job, monkeypatch, tmp_path):
+    import contextlib
+    old = tmp_path / "old"
+    conns = old / "etc/NetworkManager/system-connections"
+    conns.mkdir(parents=True)
+    (old / "etc/fstab").write_text("UUID=x / ext4 defaults 0 1\n")
+    (old / "etc/os-release").write_text('NAME="Mint"\n')
+    (conns / "Home.nmconnection").write_text("[connection]\nid=Home\nuuid=1\ntype=wifi\n[wifi]\nssid=Home\n"
+                                             "[wifi-security]\nkey-mgmt=wpa-psk\npsk=pw\n")
+    private = tmp_path / "root-only"
+    private.mkdir(mode=0o700)
+    monkeypatch.setattr(job, "WIFI", str(private / "keep-wifi"))
+    monkeypatch.setattr(job, "mounted_read_only", lambda part: contextlib.nullcontext(str(old)))
+    disk = {"parts": [{"node": "/dev/sda2"}]}
+    job.save_wifi(disk, {"system": "linux", "source": "/dev/sda2"})
+    saved = json.loads((private / "keep-wifi").read_text())
+    assert [c["ssid"] for c in saved] == ["Home"] and "psk=pw" in saved[0]["text"]
+    assert ((private / "keep-wifi").stat().st_mode & 0o777) == 0o600
+    # Windows' networks can't be read: nothing is left
+    (private / "keep-wifi").unlink()
+    job.save_wifi(disk, {"system": "windows", "source": "/dev/sda2"})
+    assert not (private / "keep-wifi").exists()

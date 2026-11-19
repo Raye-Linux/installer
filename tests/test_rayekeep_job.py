@@ -37,6 +37,8 @@ def load(monkeypatch, tmp_path, gs, step):
     os.mkdir(tmp_path / "root-only", 0o700)
     monkeypatch.setattr(module, "RESULT", str(tmp_path / "root-only/keep-result"))
     monkeypatch.setattr(module, "CHOICES", str(tmp_path / "choices"))
+    monkeypatch.setattr(module, "WIFI", str(tmp_path / "root-only/keep-wifi"))
+    monkeypatch.setattr(module, "LIVE", str(tmp_path / "live"))
     return module
 
 
@@ -89,7 +91,48 @@ def test_a_failure_never_stops_the_install(monkeypatch, tmp_path):
     assert job.run() is None
     result = json.loads(pathlib.Path(job.RESULT).read_text())
     assert result == {"way": "stage", "name": "Fedora Linux 42", "ok": False, "files": 0, "failed": 1,
-                      "left": True}
+                      "left": True, "wifi": 0}
+
+
+WIFI = ("[connection]\nid=Maison\nuuid=6b1c\ntype=wifi\n\n[wifi]\nssid=Maison\n\n"
+        "[wifi-security]\nkey-mgmt=wpa-psk\npsk=secret\n")
+
+
+def test_saved_networks_reach_the_new_system_and_leave_root_s_folder(monkeypatch, tmp_path):
+    gs = Storage(rayeKeep=dict(kept_home(), way="stage", stage="/dev/sda3"), rootMountPoint=str(tmp_path / "t"),
+                 username="nobody-here")
+    job = load(monkeypatch, tmp_path, gs, "copy")
+    pathlib.Path(job.WIFI).write_text(json.dumps([{"name": "Maison", "ssid": "Maison", "uuid": "6b1c",
+                                                   "text": WIFI}]))
+    assert job.run() is None
+    # even when the files could not be brought: the networks are the PC's
+    assert json.loads(pathlib.Path(job.RESULT).read_text())["wifi"] == 1
+    saved = tmp_path / "t/etc/NetworkManager/system-connections/Maison.nmconnection"
+    assert saved.read_text() == WIFI and (saved.stat().st_mode & 0o777) == 0o600
+    assert not os.path.exists(job.WIFI)
+
+
+@pytest.mark.skipif(os.geteuid() != 0, reason="giving files to the account needs root")
+def test_kept_home_brings_its_wallpaper_and_apps_back(monkeypatch, tmp_path):
+    root = home_target(tmp_path)
+    kept = kept_home()
+    kept["users"][0]["wallpaper"] = {"path": "Pictures/cat.png", "bytes": 3}
+    kept["apps"] = ["org.gimp.GIMP"]
+    gs = Storage(rayeKeep=kept, rootMountPoint=str(root), username="alice")
+    (tmp_path / "choices").write_text("lang=fr\n")
+    load(monkeypatch, tmp_path, gs, "prepare").run()
+    (root / "home/alice").mkdir()
+    os.makedirs(tmp_path / "second")
+    (tmp_path / "second/choices").write_text("lang=fr\n")
+    job = load(monkeypatch, tmp_path / "second", gs, "copy")
+    assert job.run() is None
+    data = root / "home/alice/.local/share/raye"
+    assert (data / "kept-wallpaper").read_text() == "/home/alice/Images/cat.png\n"
+    assert (data / "kept-apps").read_text() == "org.gimp.GIMP\n"
+    entry = root / "home/alice/.config/autostart/raye-welcome-back.desktop"
+    assert entry.stat().st_uid == 4321 and (data / "welcome-back").stat().st_uid == 4321
+    result = json.loads(pathlib.Path(job.RESULT).read_text())
+    assert result["wallpaper"] and result["apps"] == 1
 
 
 def test_the_disk_job_mounts_a_kept_home_and_hands_the_rest_over():

@@ -31,6 +31,9 @@ ENGLISH = {"desktop": "Desktop", "documents": "Documents", "downloads": "Downloa
 FOLDERS = {"en": ENGLISH,
            "fr": {"desktop": "Bureau", "documents": "Documents", "downloads": "Téléchargements",
                   "music": "Musique", "pictures": "Images", "videos": "Vidéos"}}
+# Browser profiles keep their place in the home: that is where the browser
+# looks. One account's only, even when several are kept.
+PROFILES = {"firefox": ".mozilla/firefox", "chrome": ".config/google-chrome", "chromium": ".config/chromium"}
 # Windows keeps the English names on disk in every language
 WINDOWS_SKIP = {"default", "default user", "public", "all users", "defaultuser0",
                 "defaultuser100000", "wdagutilityaccount", "defaultapppool"}
@@ -248,6 +251,8 @@ def destination(lang, kind, user, several):
 
     The account name comes from the other system: one plain name, or "user".
     """
+    if kind in PROFILES:
+        return PROFILES[kind]
     name = FOLDERS.get(lang, ENGLISH)[kind]
     if not several:
         return name

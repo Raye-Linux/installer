@@ -24,6 +24,14 @@ Item {
     // Calamares gives each page this; a Loader's page sees it the same way
     property var config: QtObject {
         property var summaryModel: entries
+        // the language page: welcomeq's lists, all requirements met
+        property var languagesModel: languageRows
+        property int localeIndex: 0
+        property var unsatisfiedRequirements: []
+        property var requirementsModel: QtObject {
+            property bool satisfiedRequirements: true
+            property bool satisfiedMandatory: true
+        }
 
         // localeq's Config as far as the region page and the formats go:
         // the language follows every location call, the formats only a
@@ -73,6 +81,11 @@ Item {
     readonly property string pages: "../../etc/calamares/branding/raye/pages/"
 
     ListModel { id: entries }
+    ListModel {
+        id: languageRows
+        ListElement { label: "American English"; englishLabel: "English" }
+        ListElement { label: "français"; englishLabel: "French" }
+    }
 
     Loader {
         id: loader
@@ -458,6 +471,30 @@ Item {
         }
 
         // ---- the words behind it
+
+        // ---- the language page: an old processor is said, never in the way
+        function test_old_processor_card_data() {
+            return [{ tag: "old en", verdict: "old", lang: "en" }, { tag: "old fr", verdict: "old", lang: "fr" },
+                    { tag: "too-old en", verdict: "too-old", lang: "en" }]
+        }
+        function test_old_processor_card(data) {
+            const page = load("Language.qml", "language")
+            page.lang = data.lang
+            page.cpu = { level: "1", verdict: data.verdict }
+            wait(20)
+            const words = shown(page)
+            const notice = S.cpuNotice(data.verdict)
+            verify(words.indexOf(S.t(data.lang, notice.title)) >= 0, words.join(" | "))
+            verify(words.indexOf(S.t(data.lang, notice.text)) >= 0)
+        }
+        function test_recent_processor_says_nothing() {
+            const page = load("Language.qml", "language")
+            page.cpu = { level: "3", verdict: "ok" }
+            wait(20)
+            const words = shown(page).join(" | ")
+            for (const key of ["cpuOldTitle", "cpuTooOldTitle"])
+                verify(words.indexOf(S.t("en", key)) < 0, words)
+        }
 
         function test_the_language_list_says_english_not_american() {
             compare(S.languageRow("American English", "English"), "English")

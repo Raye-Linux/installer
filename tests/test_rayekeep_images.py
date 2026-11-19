@@ -157,6 +157,34 @@ def umount(state, where):
     state["mounts"].remove(str(where))
 
 
+JPEG = b"\xff\xd8\xff\xe0" + bytes(range(256)) * 40
+
+
+def linux_extras(tree, state):
+    """A Firefox profile left open, a wallpaper outside the six folders, a
+    saved Wi-Fi network and a Flatpak app."""
+    home = tree / "home/alice"
+    profile = home / ".mozilla/firefox/ab12.default-release"
+    profile.mkdir(parents=True)
+    (home / ".mozilla/firefox/profiles.ini").write_text("[Profile0]\nPath=ab12.default-release\nIsRelative=1\n")
+    (profile / "places.sqlite").write_bytes(os.urandom(200_000))
+    os.symlink("127.0.1.1:+4242", profile / "lock")
+    (home / ".local/share/backgrounds").mkdir(parents=True)
+    (home / ".local/share/backgrounds/sea.png").write_bytes(b"\x89PNG" + os.urandom(30_000))
+    (home / ".config").mkdir()
+    (home / ".config/plasma-org.kde.plasma.desktop-appletsrc").write_text(
+        "[Containments][1][Wallpaper][org.kde.image][General]\n"
+        "Image=file:///home/alice/.local/share/backgrounds/sea.png\n")
+    conns = tree / "etc/NetworkManager/system-connections"
+    conns.mkdir(parents=True)
+    (conns / "Maison.nmconnection").write_text(
+        "[connection]\nid=Maison\nuuid=6b1c\ntype=wifi\n\n[wifi]\nssid=Maison\n\n"
+        "[wifi-security]\nkey-mgmt=wpa-psk\npsk=secret\n")
+    (tree / "var/lib/flatpak/app/org.gimp.GIMP/current").mkdir(parents=True)
+    state["firefox"] = {k: v for k, v in hashes(home / ".mozilla/firefox").items() if not v.startswith("-> ")}
+    state["wallpaper"] = hashlib.sha256((home / ".local/share/backgrounds/sea.png").read_bytes()).hexdigest()
+
+
 def make_old_system(attach, state, tmp_path, fstype):
     node = attach("label: gpt\n,512M,U\n,,L\n")
     settle(node)
@@ -172,6 +200,10 @@ def make_old_system(attach, state, tmp_path, fstype):
         (where / "Users/Default/Documents").mkdir(parents=True)
         alice_files(where / "Users")
         os.rename(where / "Users/alice", where / "Users/Ann2")
+        themes = where / "Users/Ann2/AppData/Roaming/Microsoft/Windows/Themes"
+        themes.mkdir(parents=True)
+        (themes / "TranscodedWallpaper").write_bytes(JPEG)
+        state["wallpaper"] = hashlib.sha256(JPEG).hexdigest()
         # what Windows calls a junction is left out of the copy
         before = {k: v for k, v in hashes(where / "Users/Ann2/Documents").items() if not v.startswith("-> ")}
         pictures = hashes(where / "Users/Ann2/Pictures")
@@ -179,6 +211,7 @@ def make_old_system(attach, state, tmp_path, fstype):
         return node, before, pictures, "Ann2"
     old_linux(tree)
     alice_files(tree / "home")
+    linux_extras(tree, state)
     before = hashes(tree / "home/alice/Documents")
     pictures = hashes(tree / "home/alice/Pictures")
     if fstype == "btrfs":
@@ -212,7 +245,11 @@ def test_replace_and_keep_from_start_to_end(loop, fstype):
     probe.find_files_to_keep([disk], probe_run)
     old = next(p for p in disk["parts"] if p["node"] == node + "p2")
     assert old["keep"]["users"][0]["name"] == user
-    assert [f["kind"] for f in old["keep"]["users"][0]["folders"]] == ["documents", "pictures"]
+    kinds = ["documents", "pictures"] + ([] if fstype == "ntfs" else ["firefox"])
+    assert [f["kind"] for f in old["keep"]["users"][0]["folders"]] == kinds
+    assert old["keep"]["users"][0]["wallpaper"]["path"]
+    if fstype != "ntfs":
+        assert old["keep"]["extras"] == {"wifi": 1, "apps": ["org.gimp.GIMP"]}
     options, refused = core.options_for(disk)
     assert any(o["mode"] == "keep" and o["way"] == "stage" for o in options), refused
 
@@ -232,7 +269,9 @@ def test_replace_and_keep_from_start_to_end(loop, fstype):
     mount(state, stage, where, "ro")
     assert hashes(where / "users/0/documents") == documents
     assert hashes(where / "users/0/pictures") == pictures
-    assert json.loads((where / apply.MANIFEST).read_text())["files"] == plan["keep"]["files"]
+    staged_wallpaper = hashes(where / "users/0/wallpaper")
+    assert list(staged_wallpaper.values()) == [state["wallpaper"]]
+    assert json.loads((where / apply.MANIFEST).read_text())["files"] == plan["keep"]["files"] + 1
     umount(state, where)
 
     # the account step: Raye's root, an account, the files in
@@ -249,7 +288,14 @@ def test_replace_and_keep_from_start_to_end(loop, fstype):
     assert result["ok"] and not result["left"] and result["grown"], result
     several = False
     assert hashes(target / "home/new" / keep.destination("fr", "documents", user, several)) == documents
-    assert hashes(target / "home/new/Images") == pictures
+    picture = "Fond d'écran Windows.jpg" if fstype == "ntfs" else "sea.png"
+    assert hashes(target / "home/new/Images") == dict(pictures, **{picture: state["wallpaper"]})
+    assert result["wallpaper"]
+    assert (target / "home/new/.local/share/raye/kept-wallpaper").read_text() == f"/home/new/Images/{picture}\n"
+    if fstype != "ntfs":
+        assert hashes(target / "home/new/.mozilla/firefox") == state["firefox"]
+        assert not os.path.lexists(target / "home/new/.mozilla/firefox/ab12.default-release/lock")
+        assert (target / "home/new/.local/share/raye/kept-apps").read_text() == "org.gimp.GIMP\n"
     assert not (target / "home/new/Projects").exists()
     # the staging partition went, Raye's volume took its room
     after = {p["start"]: p for p in read_table(node)["parts"]}

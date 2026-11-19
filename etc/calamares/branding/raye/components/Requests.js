@@ -116,3 +116,19 @@ function preflight(done) {
         done(found)
     })
 }
+
+// raye-cpu-check's lines as { level, verdict, missing }; {} when it left none
+function parseCpu(text) {
+    var result = {}
+    var lines = String(text).split("\n")
+    for (var i = 0; i < lines.length; ++i) {
+        var at = lines[i].indexOf(" ")
+        if (at > 0)
+            result[lines[i].slice(0, at)] = lines[i].slice(at + 1)
+    }
+    return result
+}
+
+function cpu(done) {
+    read("cpu", function(text) { done(parseCpu(text)) })
+}

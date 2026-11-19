@@ -335,6 +335,26 @@ TestCase {
         compare(sent.install, "replace")
         verify(sent.details.indexOf("3.7 GB") > 0, sent.details)
     }
+    function test_what_comes_along_is_listed_data() {
+        return [{ tag: "en", lang: "en" }, { tag: "fr", lang: "fr" }]
+    }
+    function test_what_comes_along_is_listed(data) {
+        const disk = mintDisk()
+        const option = disk.options[1]
+        option.users[0].folders.push({ kind: "firefox", files: 300, bytes: 0.2 * gib })
+        option.extras = { wallpaper: true, wifi: 3, apps: 12 }
+        const rows = Logic.confirm(option, disk, data.lang).kept
+        const labels = rows.map(r => r.label)
+        for (const key of ["folderFirefox", "keptWallpaper", "keptWifi", "keptApps"]) {
+            verify(labels.indexOf(S.t(data.lang, key)) >= 0, key + ": " + labels)
+            verify(S.t(data.lang, key) !== key)
+        }
+        compare(rows[rows.length - 1].detail, S.t(data.lang, "keptAppsCount", ["12"]))
+        compare(rows[rows.length - 2].detail, S.t(data.lang, "keptWifiCount", ["3"]))
+        // nothing extra, nothing said
+        option.extras = { wallpaper: false, wifi: 0, apps: 0 }
+        compare(Logic.confirm(option, disk, data.lang).kept.length, 3)
+    }
     function test_keeping_reads_well_in_french() {
         const option = mintDisk().options[1]
         const q = Logic.confirm(option, mintDisk(), "fr")
@@ -381,6 +401,57 @@ TestCase {
         verify(Logic.keepResult('{"way":"stage","name":"Windows","ok":true}', "en").indexOf("Windows") >= 0)
         verify(Logic.keepResult('{"way":"stage","ok":false,"left":true}', "fr").indexOf("raye_files") > 0)
         verify(Logic.keepResult('{"way":"home","ok":false}', "en").indexOf("Nothing was deleted") >= 0)
+    }
+
+    // Next to Windows, Setup offers to bring its files over after the first
+    // sign-in (Settings, Files from Windows)
+    function windowsChoices() {
+        const disk = { node: "/dev/sda", model: "Test SSD", size: 256 * gib, sector: 512, first: 2048,
+                       last: 256 * gib / 512 - 34, id: "abc", empty: false, blocked: "", refused: [],
+                       parts: [{ node: "/dev/sda1", start: 2048, sectors: 2097152, label: "SYSTEM" },
+                               { node: "/dev/sda3", start: 2048 + 2097152, sectors: 209715200, fstype: "ntfs", os: "Windows" }] }
+        disk.options = [{ mode: "shrink", node: "/dev/sda3", name: "Windows", fstype: "ntfs",
+                          total: 100 * gib, keepMin: 50 * gib, keepMax: 72 * gib, keepDefault: 60 * gib }, { mode: "free", start: 2048 + 2097152 + 211812352, bytes: 20 * gib },
+                        { mode: "replace", node: "/dev/sda3", name: "Windows", fstype: "ntfs", bytes: 100 * gib },
+                        { mode: "erase" }]
+        return disk
+    }
+    function test_windows_files_are_offered_only_next_to_windows() {
+        const disk = windowsChoices()
+        verify(Logic.offersWindowsFiles(disk, disk.options[0]))
+        verify(Logic.offersWindowsFiles(disk, disk.options[1]), "free space next to Windows")
+        verify(!Logic.offersWindowsFiles(disk, disk.options[2]), "Windows is replaced")
+        verify(!Logic.offersWindowsFiles(disk, disk.options[3]))
+        verify(!Logic.offersWindowsFiles(disk, null))
+        const arch = linuxDisk()
+        verify(!Logic.offersWindowsFiles(arch, arch.options[0]))
+        verify(!Logic.offersWindowsFiles(arch, arch.options[1]))
+    }
+    function test_windows_files_answer() {
+        const disk = windowsChoices()
+        compare(Logic.windowsFilesAnswer(disk, disk.options[0], true, true), "bring")
+        compare(Logic.windowsFilesAnswer(disk, disk.options[0], true, false), "later")
+        compare(Logic.windowsFilesAnswer(disk, disk.options[0], false, true), "")
+        compare(Logic.windowsFilesAnswer(disk, disk.options[3], true, true), "")
+    }
+    function test_windows_files_box_data() {
+        return [{ tag: "en", lang: "en" }, { tag: "fr", lang: "fr" }]
+    }
+    function test_windows_files_box(data) {
+        const made = page([windowsChoices()])
+        made.lang = data.lang
+        verify(shown(made).indexOf(S.t(data.lang, "diskWindowsFiles")) < 0, "shown before a choice")
+        made.ask(0)
+        made.answerQuestion(true)
+        wait(50)
+        const box = named(made, "windowsFiles")
+        verify(box !== null && box.visible, "no box next to Windows")
+        verify(box.checked, "ticked unless the person says no")
+        compare(box.text, S.t(data.lang, "diskWindowsFiles"))
+        verify(shown(made).indexOf(S.t(data.lang, "diskWindowsFilesLine")) >= 0)
+        made.pick(2)
+        wait(50)
+        verify(!box.visible, "still offered once Windows is replaced")
     }
 }
 

@@ -13,6 +13,7 @@ import org.raye.ui as Ui
 import org.raye.setup
 
 import "../../etc/calamares/branding/raye/strings.js" as S
+import "../../etc/calamares/branding/raye/components/Requests.js" as Requests
 
 Item {
     id: root
@@ -516,6 +517,28 @@ Item {
                 var key = S.installStageOrder[j]
                 verify(S.t("en", key) !== key, "no English words for " + key)
                 verify(S.t("fr", key) !== key, "no French words for " + key)
+            }
+        }
+
+        // raye-cpu-check's lines, as the first page reads them
+        function test_cpu_lines_are_read() {
+            compare(Requests.parseCpu("level 1\nverdict old\nmissing lahf_lm popcnt\n"),
+                    { level: "1", verdict: "old", missing: "lahf_lm popcnt" })
+            compare(Requests.parseCpu(""), {})
+            compare(Requests.parseCpu("verdict unknown\n").verdict, "unknown")
+        }
+
+        function test_only_an_old_processor_gets_words() {
+            compare(S.cpuNotice("ok"), null)
+            compare(S.cpuNotice("unknown"), null)
+            compare(S.cpuNotice(undefined), null)
+            compare(S.cpuNotice("old").severe, false)
+            compare(S.cpuNotice("too-old").severe, true)
+            for (const verdict of ["old", "too-old"]) {
+                const notice = S.cpuNotice(verdict)
+                for (const lang of ["en", "fr"])
+                    for (const key of [notice.title, notice.text])
+                        verify(S.t(lang, key) !== key, lang + " " + key)
             }
         }
 

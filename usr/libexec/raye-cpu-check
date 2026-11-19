@@ -1,0 +1,63 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Says whether this PC's processor runs Raye, for the first page of Setup.
+
+    level N            the x86-64 level every core has (0 to 4)
+    verdict ok|old|too-old|unknown
+    missing <flags>    what the next level up lacks (old, too-old)
+
+Raye is built for the plain x86-64 baseline (Ubuntu's amd64, and the Raye
+kernel stays on it), so level 1 runs everything Raye ships. Some apps and
+games want SSE4.2 and POPCNT (level 2) and won't start below it: that is
+"old". Below level 1 nothing runs. A file we cannot read says nothing.
+"""
+import sys
+
+# the x86-64 levels of the psABI, as /proc/cpuinfo names the flags
+LEVELS = (
+    ("lm", "cmov", "cx8", "fpu", "fxsr", "mmx", "sse", "sse2"),
+    ("cx16", "lahf_lm", "popcnt", "pni", "sse4_1", "sse4_2", "ssse3"),
+    ("abm", "avx", "avx2", "bmi1", "bmi2", "f16c", "fma", "movbe", "xsave"),
+    ("avx512bw", "avx512cd", "avx512dq", "avx512f", "avx512vl"),
+)
+
+
+def flags_of(text):
+    """The flags every processor of a /proc/cpuinfo has, None when it lists none."""
+    common = None
+    for line in text.splitlines():
+        key, sep, value = line.partition(":")
+        if sep and key.strip() == "flags":
+            mine = set(value.split())
+            common = mine if common is None else common & mine
+    return common
+
+
+def verdict(flags):
+    if not flags:
+        return ["verdict unknown"]
+    level = 0
+    for wanted in LEVELS:
+        if not set(wanted) <= flags:
+            break
+        level += 1
+    lines = [f"level {level}"]
+    if level >= 2:
+        return lines + ["verdict ok"]
+    missing = sorted(set(LEVELS[level]) - flags)
+    return lines + ["verdict " + ("old" if level == 1 else "too-old"), "missing " + " ".join(missing)]
+
+
+def main(argv):
+    path = argv[1] if len(argv) > 1 else "/proc/cpuinfo"
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            text = f.read(4 * 1024 * 1024)
+    except OSError:
+        text = ""
+    print("\n".join(verdict(flags_of(text))))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

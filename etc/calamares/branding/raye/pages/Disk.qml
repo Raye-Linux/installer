@@ -129,6 +129,7 @@ RayeFrame {
 
     function save() {
         Requests.write("disk-ready", complete ? "1" : "0")
+        Requests.answer("windows-files", Logic.windowsFilesAnswer(disk, option, complete, windowsFiles.checked))
         Requests.write("answer-disk", complete
                        ? JSON.stringify(Logic.answer(disk, option, keep, encrypt.checked, lang)) : "{}")
         // root's own folder, a 0600 file; the job takes it away as soon as it
@@ -302,6 +303,28 @@ RayeFrame {
                     color: Theme.textTertiary
                     wrapMode: Text.WordWrap
                 }
+            }
+
+            // next to Windows: its files, after the first sign-in
+            CheckBox {
+                id: windowsFiles
+                objectName: "windowsFiles"
+                Layout.topMargin: 4
+                visible: Logic.offersWindowsFiles(page.disk, page.option)
+                checked: true
+                text: S.t(page.lang, "diskWindowsFiles")
+                onToggled: page.save()
+            }
+            Text {
+                Layout.fillWidth: true
+                Layout.leftMargin: 28
+                Layout.topMargin: -6
+                Layout.bottomMargin: 4
+                visible: windowsFiles.visible
+                text: S.t(page.lang, "diskWindowsFilesLine")
+                font: Theme.caption
+                color: Theme.textTertiary
+                wrapMode: Text.WordWrap
             }
 
             // why something is not offered

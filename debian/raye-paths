@@ -22,6 +22,7 @@ calamares-settings-raye  ?etc/xdg/powerdevilrc
 calamares-settings-raye  usr/bin/raye-install
 calamares-settings-raye  ?debian/tmp/usr/bin/raye-setup
 calamares-settings-raye  usr/libexec/raye-preflight
+calamares-settings-raye  usr/libexec/raye-cpu-check
 calamares-settings-raye  usr/libexec/raye-disks
 calamares-settings-raye  usr/libexec/raye-install-logs
 calamares-settings-raye  usr/libexec/raye-efi-entry
@@ -52,6 +53,8 @@ calamares-settings-raye  usr/share/wayland-sessions/raye-try.desktop
 calamares-settings-raye  usr/lib/udev/rules.d/90-raye-try.rules
 calamares-settings-raye  usr/lib/systemd/system/raye-update.service.d/raye-live.conf
 calamares-settings-raye  usr/share/initramfs-tools/scripts/casper-bottom/16raye_setup
+# Stands in for casper's 13swap: the stick never turns on the PC's swap.
+calamares-settings-raye  etc/initramfs-tools/scripts/casper-bottom/13swap
 calamares-settings-raye  usr/share/raye/setup
 
 # Shared look of the setup and first-run apps, pure QML.

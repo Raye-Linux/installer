@@ -15,6 +15,8 @@ SESSION = REPO / "usr/share/wayland-sessions/raye-try.desktop"
 HELPER = REPO / "usr/libexec/raye-try-session"
 RULE = REPO / "usr/lib/udev/rules.d/90-raye-try.rules"
 UPDATE_DROPIN = REPO / "usr/lib/systemd/system/raye-update.service.d/raye-live.conf"
+NO_SWAP = REPO / "etc/initramfs-tools/scripts/casper-bottom/13swap"
+CASPER_SWAP = pathlib.Path("/usr/share/initramfs-tools/scripts/casper-bottom/13swap")
 SDDM_AUTOLOGIN = "[Autologin]\nUser=raye\nSession=plasma.desktop\n"
 START_PINS = "org.kde.dolphin.desktop,firefox.desktop,org.raye.store.desktop"
 
@@ -312,3 +314,44 @@ def test_quit_box_goes_back_to_the_desktop():
     strings = (REPO / "etc/calamares/branding/raye/strings.js").read_text()
     for key in ("quitTextDesktop", "quitClose"):
         assert strings.count(f"{key}:") == 2, key
+
+
+# ---------------------------------------------------------------- swap
+
+def code_of(path):
+    return "\n".join(line.split("#", 1)[0] for line in path.read_text().splitlines())
+
+
+def test_live_initrd_replaces_caspers_swap_script():
+    # mkinitramfs copies /etc/initramfs-tools/scripts over /usr/share's,
+    # file by file: the same relative name is what makes it a replacement
+    assert NO_SWAP.relative_to(REPO / "etc/initramfs-tools/scripts").as_posix() == "casper-bottom/13swap"
+    assert re.fullmatch(r"[A-Za-z0-9._-]+", NO_SWAP.name)
+    assert os.access(NO_SWAP, os.X_OK)
+
+
+def test_live_initrd_never_turns_on_a_disk_swap():
+    code = code_of(NO_SWAP)
+    for word in ("swapon", "mkswap", "/dev/", "blkid", "dd "):
+        assert word not in code
+
+
+def test_swap_script_answers_prereqs_and_does_nothing(tmp_path):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name in ("swapon", "mkswap", "blkid", "dd"):
+        fake = bin_dir / name
+        fake.write_text(f"#!/bin/sh\necho {name} >> {tmp_path}/called\n")
+        fake.chmod(0o755)
+    env = {"PATH": f"{bin_dir}:/usr/bin:/bin"}
+    asked = subprocess.run(["sh", str(NO_SWAP), "prereqs"], env=env, capture_output=True, text=True)
+    assert asked.returncode == 0 and asked.stdout.strip() == ""
+    done = subprocess.run(["sh", str(NO_SWAP)], env=env, capture_output=True, text=True)
+    assert done.returncode == 0
+    assert not (tmp_path / "called").exists()
+
+
+@pytest.mark.skipif(not CASPER_SWAP.exists(), reason="casper is not installed here")
+def test_caspers_own_script_is_the_one_that_swaps_on():
+    # what the replacement is for: if casper stops doing it, drop ours
+    assert "swapon" in code_of(CASPER_SWAP)
