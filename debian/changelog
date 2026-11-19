@@ -1,3 +1,15 @@
+calamares-settings-raye (1.0~beta1) resolute; urgency=high
+
+  * Install next to another Linux: ext4 and btrfs volumes can be made
+    smaller, XFS, encrypted and LVM ones say why not, and a disk whose EFI
+    partition belongs to another system gets one of its own.
+  * Install on PCs started in BIOS mode (MBR, or GPT with a BIOS boot
+    partition).
+  * A box asks before a disk is erased, a partition deleted or a volume made
+    smaller. A stick that can't be read says to write it again.
+
+ -- techoraye <190692880+techoraye@users.noreply.github.com>  Thu, 19 Nov 2026 06:00:00 +0000
+
 calamares-settings-raye (0.5.2~beta1) resolute; urgency=high
 
   * An install made in Safe graphics starts on the graphics ladder

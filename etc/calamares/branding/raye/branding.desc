@@ -12,10 +12,10 @@ navigation: qml,bottom
 strings:
     productName:         Raye Linux
     shortProductName:    Raye
-    version:             0.5 Beta Alpenglow
-    shortVersion:        0.5 Beta
-    versionedName:       Raye Linux 0.5 Beta Alpenglow
-    shortVersionedName:  Raye 0.5 Beta
+    version:             1.0 Beta Brocken
+    shortVersion:        1.0 Beta
+    versionedName:       Raye Linux 1.0 Beta Brocken
+    shortVersionedName:  Raye 1.0 Beta
     bootloaderEntryName: Raye Linux
     productUrl:          https://github.com/Raye-Linux
     supportUrl:          https://github.com/Raye-Linux/handbook
