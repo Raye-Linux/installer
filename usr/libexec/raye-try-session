@@ -1,0 +1,97 @@
+#!/bin/sh
+# The "Try Raye Linux" session of the USB stick (raye-try.desktop, picked by
+# casper-bottom/16raye_setup when the boot entry passes raye.try): the full
+# desktop as the live account, with Install Raye Linux on the desktop and
+# first in Start. Everything lives in RAM and is gone at the next start.
+#
+#   raye-try-session          set the account up, then start Plasma
+#   raye-try-session notice   the note that nothing is kept (autostart)
+#
+# Nothing here may stop the desktop from starting: every step is allowed
+# to fail.
+
+apps=${RAYE_APPS:-/usr/share/applications}
+sessions=${RAYE_SESSIONS:-/usr/share/wayland-sessions}
+install=${RAYE_INSTALL:-/usr/bin/raye-install}
+config=${XDG_CONFIG_HOME:-$HOME/.config}
+
+french() {
+    case ${LANGUAGE:-${LANG:-}} in
+        fr*) return 0 ;;
+    esac
+    return 1
+}
+
+notice() {
+    if french; then
+        title="Vous essayez Raye Linux"
+        body="Rien n'est conservé : ce que vous faites ici disparaît au redémarrage du PC. Les disques de votre PC s'ouvrent en lecture seule, rien n'y est modifié. Pour garder Raye, installez-le."
+        button="Installer Raye Linux"
+    else
+        title="You're trying Raye Linux"
+        body="Nothing is kept: what you do here is gone when the PC restarts. Your PC's own drives open read-only, so nothing on them changes. To keep Raye, install it."
+        button="Install Raye Linux"
+    fi
+    # Plasma's notification server can come up a little after autostart;
+    # a critical notice stays until it is closed
+    tries=0
+    while [ "$tries" -lt 10 ]; do
+        if answer=$(notify-send --app-name="Raye Linux" --icon=raye-eye \
+                --urgency=critical --wait --action=install="$button" \
+                "$title" "$body" 2>/dev/null); then
+            [ "$answer" = install ] && exec "$install"
+            exit 0
+        fi
+        tries=$((tries + 1))
+        sleep 3
+    done
+    exit 0
+}
+
+[ "${1:-}" = notice ] && notice
+
+# Install Raye Linux on the desktop. Ask xdg-user-dirs where the desktop
+# is: in French it is ~/Bureau, not the ~/Desktop casper makes.
+xdg-user-dirs-update >/dev/null 2>&1
+folder=$(xdg-user-dir DESKTOP 2>/dev/null)
+[ -n "$folder" ] || folder=$HOME/Desktop
+if mkdir -p "$folder" && cp "$apps/raye-install.desktop" "$folder/raye-install.desktop"; then
+    # executable, or Plasma asks whether to trust it before running it
+    chmod 0755 "$folder/raye-install.desktop"
+fi
+
+# and first in Start, in front of the usual pins
+pins=$(kreadconfig6 --file rayeshellrc --group Start --key Pinned 2>/dev/null)
+case ",$pins," in
+    *,raye-install.desktop,*) ;;
+    *) kwriteconfig6 --file rayeshellrc --group Start --key Pinned \
+           "raye-install.desktop${pins:+,$pins}" >/dev/null 2>&1 ;;
+esac
+
+# The screen locks when it turns off on Raye; here that would ask for a
+# password the live account does not have.
+kwriteconfig6 --file kscreenlockerrc --group Daemon --key Autolock false >/dev/null 2>&1
+kwriteconfig6 --file kscreenlockerrc --group Daemon --key LockOnResume false >/dev/null 2>&1
+for profile in AC Battery LowBattery; do
+    kwriteconfig6 --file powerdevilrc --group "$profile" --group Display \
+        --key LockBeforeTurnOffDisplay false >/dev/null 2>&1
+done
+
+# the note, once the desktop and its notifications are up
+if mkdir -p "$config/autostart"; then
+    cat > "$config/autostart/raye-try-notice.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Trying Raye Linux
+Name[fr]=Essai de Raye Linux
+Exec=/usr/libexec/raye-try-session notice
+NoDisplay=true
+OnlyShowIn=KDE;
+X-KDE-autostart-phase=2
+EOF
+fi
+
+# the same command as Plasma's own session file
+plasma=$(sed -n 's/^Exec=//p' "$sessions/plasma.desktop" 2>/dev/null | head -1)
+[ -n "$plasma" ] || plasma=/usr/bin/startplasma-wayland
+exec $plasma

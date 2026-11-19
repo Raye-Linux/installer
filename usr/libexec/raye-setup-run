@@ -11,18 +11,32 @@
 #   reader                          screen reader on or off
 #   power restart|poweroff          from the "Quit Setup?" box
 #   disks                           read the disks again for the disk page
+#   close                           quit Setup (--desktop only)
 #
 # It also leaves for the pages, before Calamares starts:
-#   /run/raye-setup/flags       key=value: osk, account_preview, account_server
+#   /run/raye-setup/flags       key=value: osk, account_preview, account_server,
+#                               desktop
 #   /run/raye-setup/preflight   what raye-preflight found on the disks
 #   /run/raye-setup/disks.json  what the disk page may offer (raye-disks)
 
+# --desktop: started by raye-install from a desktop ("Try Raye Linux", or
+# the setup session's fallback). One run of Setup, and quitting it goes
+# back to that desktop instead of restarting the PC.
+#
 set -u
+
+desktop=0
+case ${1:-} in
+    --desktop) desktop=1 ;;
+esac
 
 dir=/run/raye-setup
 requests=$dir/requests
 
 sudo -n install -d -o "$(id -u)" -g "$(id -g)" -m 0755 "$dir"
+# a second Setup would take the first one's FIFO and private folder
+exec 9>"$dir/lock"
+flock -n 9 || exit 0
 rm -f "$requests" "$dir/rescue"
 mkfifo -m 0600 "$requests"
 
@@ -66,6 +80,7 @@ osk_available() {
 
 {
     echo "osk=$(osk_available && echo 1 || echo 0)"
+    echo "desktop=$desktop"
     if flag_on && [ -n "$(account_server)" ]; then
         echo "account_preview=1"
         echo "account_server=$(account_server)"
@@ -117,6 +132,9 @@ serve() {
             osk) osk "$a" >/dev/null 2>&1 ;;
             reader) reader ;;
             disks) read_disks & ;;
+            close)
+                [ "$desktop" = 1 ] && sudo -n pkill -TERM -x calamares
+                ;;
             power)
                 case $a in
                     restart) sudo -n systemctl --no-wall reboot ;;
@@ -162,8 +180,9 @@ while :; do
         quick=0
     fi
     [ "$quick" -ge 2 ] && break
+    [ "$desktop" = 1 ] && break
 done
 
 sudo -n /usr/libexec/raye-setup-private clear
-touch "$dir/rescue"
+[ "$desktop" = 1 ] || touch "$dir/rescue"
 kill "$server" 2>/dev/null

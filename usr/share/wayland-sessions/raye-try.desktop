@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Try Raye Linux
+Name[fr]=Essayer Raye Linux
+Comment=Raye Linux from the USB stick, without installing it
+Comment[fr]=Raye Linux depuis la clé USB, sans l'installer
+Exec=/usr/libexec/raye-try-session
+DesktopNames=KDE

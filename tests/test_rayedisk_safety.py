@@ -495,8 +495,11 @@ def test_setup_session_prepares_the_folder_before_each_start_and_clears_it_after
 
 
 def test_starting_setup_from_the_desktop_clears_the_password_on_any_exit():
+    # raye-install hands over to the session's own runner, whose trap and
+    # prepare/clear around each start the test above holds
     text = _code(ROOT / "usr/bin/raye-install")
-    assert "exec sudo" not in text
-    assert "raye-setup-private prepare" in text
-    assert "trap" in text and "raye-setup-private clear" in text
-    assert text.index("raye-setup-private prepare") < text.index("calamares")
+    assert "exec /usr/libexec/raye-setup-run --desktop" in text
+    assert "calamares" not in text
+    run = _code(ROOT / "usr/libexec/raye-setup-run")
+    assert "trap 'sudo -n /usr/libexec/raye-setup-private clear' EXIT" in run
+    assert run.index("trap 'sudo -n /usr/libexec/raye-setup-private clear' EXIT") < run.index("while :; do")

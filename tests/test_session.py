@@ -74,7 +74,7 @@ def test_requests_the_session_obeys_are_a_closed_list():
     run = (REPO / "usr/libexec/raye-setup-run").read_text()
     serve = run.split("serve() {", 1)[1].split("\n}\n", 1)[0]
     words = re.findall(r"^\s{12}(\w+)\)", serve, re.M)
-    assert words == ["keyboard", "osk", "reader", "disks", "power"]
+    assert words == ["keyboard", "osk", "reader", "disks", "close", "power"]
     assert "restart) sudo -n systemctl --no-wall reboot" in serve
     assert "poweroff) sudo -n systemctl --no-wall poweroff" in serve
 

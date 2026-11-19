@@ -2,7 +2,7 @@
 // card's left edge, the stages of setup over its right edge, and the close
 // button at the right end of the screen. Closing asks "Quit Setup?" and
 // restarts or shuts the PC down: there is no desktop behind Setup to go
-// back to.
+// back to. Opened from a desktop (Try Raye Linux), it goes back there.
 
 import io.calamares.ui 1.0
 import io.calamares.core 1.0
@@ -33,6 +33,9 @@ Rectangle {
     readonly property int stage: S.stageOf(step)
     // Calamares' own Cancel is off (settings.conf): this button is the way out
     readonly property bool closable: S.steps[step] !== "installing" && S.steps[step] !== "done"
+    // started by raye-install from a desktop rather than the stick's session
+    property bool fromDesktop: false
+    Component.onCompleted: Requests.flags(found => fromDesktop = found.desktop === "1")
 
     function t(key, args) { return S.t(lang, key, args) }
 
@@ -158,6 +161,10 @@ Rectangle {
             Requests.send("power " + what)
             hide()
         }
+        function leave() {
+            Requests.send("close")
+            hide()
+        }
 
         Rectangle {
             anchors.centerIn: parent
@@ -183,7 +190,7 @@ Rectangle {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: bar.t("quitText")
+                    text: bar.t(bar.fromDesktop ? "quitTextDesktop" : "quitText")
                     font: Theme.body
                     color: Theme.textSecondary
                     wrapMode: Text.WordWrap
@@ -193,10 +200,17 @@ Rectangle {
                     Layout.alignment: Qt.AlignRight
                     spacing: 8
                     PrimaryButton {
+                        visible: bar.fromDesktop
+                        text: bar.t("quitClose")
+                        onClicked: quitBox.leave()
+                    }
+                    PrimaryButton {
+                        visible: !bar.fromDesktop
                         text: bar.t("quitRestart")
                         onClicked: quitBox.power("restart")
                     }
                     SubtleButton {
+                        visible: !bar.fromDesktop
                         text: bar.t("quitShutDown")
                         onClicked: quitBox.power("poweroff")
                     }

@@ -1,8 +1,9 @@
 #!/bin/sh
 # The USB stick starts Raye Setup and nothing else: 15autologin wrote the
 # live account's autologin with the desktop session, this points it at the
-# setup session instead. Only in the live image's initrd: this file leaves
-# with the installer.
+# setup session instead. The "Try Raye Linux" entries pass raye.try: then
+# it is the desktop, with Install on it (raye-try.desktop). Only in the
+# live image's initrd: this file leaves with the installer.
 
 PREREQ="15autologin"
 prereqs() { echo "$PREREQ"; }
@@ -15,8 +16,19 @@ esac
 [ -f /root/usr/share/wayland-sessions/raye-setup.desktop ] || exit 0
 [ -f /root/etc/sddm.conf ] || exit 0
 
-log_begin_msg "Starting Raye Setup"
+session=raye-setup.desktop
+message="Starting Raye Setup"
+case " $(cat /proc/cmdline) " in
+    *" raye.try "*)
+        # without its session file, plain Plasma is still better than Setup
+        [ -f /root/usr/share/wayland-sessions/raye-try.desktop ] || exit 0
+        session=raye-try.desktop
+        message="Starting Raye Linux"
+        ;;
+esac
+
+log_begin_msg "$message"
 if grep -q '^Session=' /root/etc/sddm.conf; then
-    sed -i 's/^Session=.*/Session=raye-setup.desktop/' /root/etc/sddm.conf
+    sed -i "s/^Session=.*/Session=$session/" /root/etc/sddm.conf
 fi
 log_end_msg

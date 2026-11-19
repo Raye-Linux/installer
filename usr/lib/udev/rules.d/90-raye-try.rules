@@ -1,0 +1,14 @@
+# Trying Raye from the USB stick (raye.try on the kernel line): the PC's
+# own disks open read-only, so trying changes nothing on them. USB drives
+# stay writable, to keep a file on a stick. The allow list is udisks'
+# own without rw; noload stops ext3/ext4 from replaying their journal,
+# which a plain read-only mount still does.
+IMPORT{cmdline}="raye.try"
+ENV{raye.try}!="1", GOTO="raye_try_end"
+SUBSYSTEM!="block", GOTO="raye_try_end"
+ENV{ID_BUS}=="usb", GOTO="raye_try_end"
+ENV{UDISKS_MOUNT_OPTIONS_DEFAULTS}="ro"
+ENV{UDISKS_MOUNT_OPTIONS_ALLOW}="exec,noexec,nodev,nosuid,atime,noatime,nodiratime,relatime,strictatime,lazytime,ro,sync,dirsync,noload,acl,nosymfollow"
+ENV{UDISKS_MOUNT_OPTIONS_EXT3_DEFAULTS}="errors=remount-ro,noload"
+ENV{UDISKS_MOUNT_OPTIONS_EXT4_DEFAULTS}="errors=remount-ro,noload"
+LABEL="raye_try_end"
