@@ -134,8 +134,11 @@ function refusedText(refusal, lang) {
         return S.t(lang, "fullTable")
     if (refusal.reason === "shared-efi")
         return S.t(lang, "sharedEfi")
-    var text = S.t(lang, S.findingKey(refusal.finding), [refusal.name || S.t(lang, "diskThisPartition")])
-    // "%1 is encrypted": with no name, %1 is "this partition" and starts the sentence
+    // "%1 is encrypted": with no name, %1 is "this partition" and starts the
+    // sentence. In French these sentences are masculine ("%1 est chiffré :
+    // Raye ne peut pas le réduire"), so the word is "ce volume", never
+    // "cette partition"
+    var text = S.t(lang, S.findingKey(refusal.finding), [refusal.name || S.t(lang, "diskThisVolume")])
     return text.charAt(0).toUpperCase() + text.slice(1)
 }
 

@@ -491,6 +491,18 @@ TestCase {
         }
     }
 
+    function test_a_volume_without_a_name_agrees_in_french() {
+        // "%1 est chiffré : Raye ne peut pas le réduire" is masculine:
+        // with no name, %1 must be a masculine word ("Ce volume"), never
+        // "cette partition" ("Cette partition est chiffré ... le réduire")
+        for (const f of S.volumeFindings) {
+            const text = Logic.refusedText({ finding: f }, "fr")
+            verify(text.indexOf("artition") < 0, f + ": " + text)
+            verify(/(^Ce|\bce) volume\b/.test(text), f + ": " + text)
+        }
+        compare(Logic.refusedText({ finding: "encrypted" }, "en").indexOf("This partition "), 0)
+    }
+
     function test_nothing_on_the_page_shows_a_raw_key() {
         const disk = windowsDisk()
         const options = [shrink, { mode: "free", start: 1, bytes: gib }, { mode: "replace", node: "/dev/sda3", name: "Windows", bytes: gib }, { mode: "erase" }]
