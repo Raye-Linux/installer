@@ -7,6 +7,11 @@ calamares-settings-raye (1.0~beta1) resolute; urgency=high
     partition).
   * A box asks before a disk is erased, a partition deleted or a volume made
     smaller. A stick that can't be read says to write it again.
+  * Try Raye Linux from the USB stick: the desktop without Setup, Install
+    on the desktop and in Start, the PC's disks read-only, nothing kept.
+  * Setup can replace another Linux or Windows and keep your Desktop,
+    Documents, Downloads, Music, Pictures and Videos, copied and checked
+    file by file before anything is deleted.
 
  -- techoraye <190692880+techoraye@users.noreply.github.com>  Thu, 19 Nov 2026 06:00:00 +0000
 
