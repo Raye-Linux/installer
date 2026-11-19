@@ -30,6 +30,13 @@ case ${1:-} in
     --desktop) desktop=1 ;;
 esac
 
+# From a desktop nothing keeps the PC awake: it could sleep in the middle of
+# an install. The setup session wraps itself the same way (raye-setup-session).
+if [ "$desktop" = 1 ] && [ -z "${RAYE_SETUP_INHIBITED:-}" ] && command -v systemd-inhibit >/dev/null; then
+    RAYE_SETUP_INHIBITED=1 exec systemd-inhibit --what=idle:sleep:handle-lid-switch \
+        --who="Raye Setup" --why="Installing Raye Linux" "$0" "$@"
+fi
+
 dir=/run/raye-setup
 requests=$dir/requests
 

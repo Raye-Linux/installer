@@ -279,6 +279,16 @@ def test_setup_from_the_desktop_runs_once_and_leaves_no_rescue():
     assert re.search(r'\[ "\$desktop" = 1 \] \|\| touch "\$dir/rescue"', run)
 
 
+def test_setup_from_the_desktop_keeps_the_pc_awake():
+    run = setup_run()
+    inhibit = run.index("systemd-inhibit")
+    # before the lock: the exec'd copy must be the one that takes it
+    assert inhibit < run.index('exec 9>"$dir/lock"')
+    line = run[inhibit:run.index("\n", run.index('"$0" "$@"', inhibit))]
+    assert "--what=idle:sleep:handle-lid-switch" in line
+    assert 'RAYE_SETUP_INHIBITED' in run[:inhibit + len(line)]
+
+
 def test_setup_from_the_desktop_tells_the_pages():
     assert 'echo "desktop=$desktop"' in setup_run()
 
