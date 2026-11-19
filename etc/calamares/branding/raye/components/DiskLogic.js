@@ -103,7 +103,9 @@ function refusedText(refusal, lang) {
         return S.t(lang, "fullTable")
     if (refusal.reason === "shared-efi")
         return S.t(lang, "sharedEfi")
-    return S.t(lang, S.findingKey(refusal.finding), [refusal.name || S.t(lang, "diskThisPartition")])
+    var text = S.t(lang, S.findingKey(refusal.finding), [refusal.name || S.t(lang, "diskThisPartition")])
+    // "%1 is encrypted": with no name, %1 is "this partition" and starts the sentence
+    return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
 // The note under the size slider: Windows checks its disk afterwards,

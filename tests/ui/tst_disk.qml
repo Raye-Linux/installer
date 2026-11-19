@@ -410,6 +410,16 @@ TestCase {
         compare(Logic.size(512 * gib, "fr"), "512 Go")
     }
 
+    function test_a_volume_without_a_name_starts_its_sentence_with_a_capital() {
+        // seen on the 1.0 Beta image: "this partition is encrypted, so..."
+        for (const lang of ["en", "fr"]) {
+            for (const f of S.volumeFindings) {
+                const text = Logic.refusedText({ finding: f }, lang)
+                compare(text.charAt(0), text.charAt(0).toUpperCase(), lang + " " + f + ": " + text)
+            }
+        }
+    }
+
     function test_nothing_on_the_page_shows_a_raw_key() {
         const disk = windowsDisk()
         const options = [shrink, { mode: "free", start: 1, bytes: gib }, { mode: "replace", node: "/dev/sda3", name: "Windows", bytes: gib }, { mode: "erase" }]

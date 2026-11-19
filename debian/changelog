@@ -2,6 +2,8 @@ calamares-settings-raye (1.0~beta2) resolute; urgency=medium
 
   * Setup asks which desktop to use, KDE Plasma or Hyprland, and installs
     Hyprland from the USB stick when it is picked.
+  * Disk warnings about a partition with no name start with a capital
+    letter ("This partition is encrypted...").
 
  -- techoraye <190692880+techoraye@users.noreply.github.com>  Thu, 19 Nov 2026 10:00:00 +0000
 
