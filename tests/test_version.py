@@ -23,7 +23,7 @@ BRANDING = ROOT / "etc/calamares/branding/raye/branding.desc"
 CHANGELOG = pathlib.Path("debian/changelog")
 
 PRODUCT = "Raye Linux"
-RELEASE = r"\d+(?:\.\d+)+ B[eê]ta"
+RELEASE = r"\d+(?:\.\d+)+ B[eê]ta(?: \d+)?"
 SHORT_PRODUCT = "Raye"
 # directories with nothing the installer says out loud
 SKIP_DIRS = {".git", "tests", "art", "assets", "__pycache__"}
@@ -50,19 +50,23 @@ def without_comments(text, suffix):
 
 def test_version_is_the_beta():
     # the shape, so a half-edited VERSION ("0.2", "0.2 beta") is caught
-    assert re.fullmatch(r"\d+(?:\.\d+)+ Beta", VERSION), VERSION
+    assert re.fullmatch(r"\d+(?:\.\d+)+ Beta(?: \d+)?", VERSION), VERSION
 
 
 def release_name():
-    """The name iso/release-names gives this number, or None without a sibling iso."""
-    names = ROOT.parent / "iso" / "release-names"
-    if not names.is_file():
+    """The name iso/release-names gives this release, or None without a
+    sibling iso. Read by iso's own parser (tools/release_name.py), which is
+    also what wrote branding.desc."""
+    tool = ROOT.parent / "iso" / "tools" / "release_name.py"
+    if not tool.is_file():
         return None
-    for line in names.read_text().splitlines():
-        fields = line.split()
-        if fields and not line.startswith("#") and fields[0] == VERSION.split()[0]:
-            return fields[1] if len(fields) > 1 else ""
-    return ""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("release_name", tool)
+    rn = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rn)
+    version, name, _full = rn.release(tool.parent.parent)
+    assert version == VERSION, f"iso/VERSION is {version!r}, ./VERSION is {VERSION!r}"
+    return name
 
 
 def test_branding_says_the_release():
