@@ -12,10 +12,10 @@ navigation: qml,bottom
 strings:
     productName:         Raye Linux
     shortProductName:    Raye
-    version:             1.0 Beta 2
-    shortVersion:        1.0 Beta 2
-    versionedName:       Raye Linux 1.0 Beta 2
-    shortVersionedName:  Raye 1.0 Beta 2
+    version:             1.0 Beta Sundog
+    shortVersion:        1.0 Beta Sundog
+    versionedName:       Raye Linux 1.0 Beta Sundog
+    shortVersionedName:  Raye 1.0 Beta Sundog
     bootloaderEntryName: Raye Linux
     productUrl:          https://github.com/Raye-Linux
     supportUrl:          https://github.com/Raye-Linux/handbook

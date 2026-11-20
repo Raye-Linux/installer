@@ -64,25 +64,30 @@ def release_name():
     spec = importlib.util.spec_from_file_location("release_name", tool)
     rn = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(rn)
-    version, name, _full = rn.release(tool.parent.parent)
+    version, name, full = rn.release(tool.parent.parent)
     assert version == VERSION, f"iso/VERSION is {version!r}, ./VERSION is {VERSION!r}"
-    return name
+    return name, full
 
 
 def test_branding_says_the_release():
     s = branding_strings()
     assert s["productName"] == PRODUCT, s["productName"]
     assert s["shortProductName"] == SHORT_PRODUCT, s["shortProductName"]
-    # the long form may carry the release name, letters only
-    named = re.fullmatch(re.escape(VERSION) + r"(?: ([A-Za-z]+))?", s["version"])
-    assert named, s["version"]
+    # the release as people read it: VERSION, or VERSION with its name in
+    # place of the beta's number ("1.0 Beta 2" named Sundog: "1.0 Beta Sundog")
+    number = re.escape(VERSION.split()[0])
+    assert re.fullmatch(number + r"(?: Beta)?(?: \d+| [A-Za-z]+)?", s["version"]), s["version"]
     expected = release_name()
     if expected is not None:
-        assert (named.group(1) or "") == expected, (
-            f"branding says {s['version']!r}, iso/release-names names this release {expected!r}")
-    assert s["shortVersion"] == VERSION, s["shortVersion"]
+        name, full = expected
+        assert s["version"] == full, (
+            f"branding says {s['version']!r}, iso/release-names makes this release {full!r}")
+        if name:
+            assert s["version"].endswith(" " + name), s["version"]
+    # every line Setup can show says the same release (window title, welcome)
+    assert s["shortVersion"] == s["version"], s["shortVersion"]
     assert s["versionedName"] == f"{PRODUCT} {s['version']}", s["versionedName"]
-    assert s["shortVersionedName"] == f"{SHORT_PRODUCT} {VERSION}", s["shortVersionedName"]
+    assert s["shortVersionedName"] == f"{SHORT_PRODUCT} {s['version']}", s["shortVersionedName"]
     # the boot entry is the product, never the version: it outlives the release
     assert s["bootloaderEntryName"] == PRODUCT, s["bootloaderEntryName"]
 
